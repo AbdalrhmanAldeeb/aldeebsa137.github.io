@@ -1,0 +1,337 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&family=Roboto:ital,wght@0,100..900;1,100..900&display=swap');
+
+*{
+    font-family: "Poppins", serif;
+    font-weight: 100;
+    font-style: normal;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    scroll-behavior: smooth;
+}
+
+header{
+    background-color: rgb(39, 38, 38);
+    width: 100%;
+    position: fixed;
+    z-index: 999;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 200px;
+}
+
+.logo{
+    text-decoration: none;
+    color: wheat ;
+    text-transform: uppercase;
+    font-weight: 700;
+    font-size: 1.8em;
+}
+
+.navigation a{
+    color: rgb(235, 216, 188);
+    text-decoration: none;
+    font-size: 1.1em;
+    font-weight: 500;
+    padding-left: 30px;
+}
+.navigation a:hover{
+    color: rgb(55, 58, 209);
+}
+
+section {
+    padding: 100px 200px ; 
+}
+
+.main {
+    width: 100%;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    background:url(imges/602334334_2008075476419457_5494898538076012355_n.jpg) no-repeat;
+    background-size: cover;
+    
+    /* التعديل هنا: center معناها في النص بالعرض، و 15% معناها تنزل من فوق شوية */
+    background-position: center 10%; 
+    
+    background-attachment: fixed;
+}
+.main h2{
+    color: rgb(10, 9, 8);
+    font-size: 1.4em;
+    font-weight: 500;
+}
+
+.main h2 span {
+    display: inline-block;
+    margin-top: 10px;
+    color: rgb(45, 75, 80) ;
+    font-size: 3em;
+    font-weight: 600;
+ }
+
+.main h3 {
+    color:rgb(0, 0, 0) ;
+    font-size: 2em;
+    font-weight:700;
+    letter-spacing: 1px;
+    margin-top: 10px;
+    margin-bottom: 30px;
+ }
+
+.main-btn {
+    color:#fff ;
+    background-color: #3a6cf4;
+    text-decoration: none;
+    font-size: 1.1em;
+    font-weight: 600;
+    display: inline-block;
+    padding: 0.9375em 2.1875em;
+    letter-spacing: 1px;
+    border-radius: 15px;
+    margin-bottom: 40px;
+    transition: 0.7s ease;
+}
+
+.main-btn:hover {
+    background-color: #0a49f6;
+    transform: scale(1.1);
+}
+
+.social-icons a{
+    color: #080505;
+    font-size: 1.7em;
+    padding-right: 30px;
+}
+
+.title{
+    display: flex;
+    justify-content: center;
+    color:  rgb(87, 77, 58) ;
+    font-weight: 800;
+    margin-bottom: 3px;
+}
+
+.content{
+    display: flex;
+    justify-content: center;
+    flex-direction: row;
+    flex-wrap: wrap;
+}
+
+.card {
+    background-color:  rgb(255, 255, 255);
+    box-shadow: 0 5px 25px rgba(1 1 1 / 15%);
+    border-radius: 10px; 
+    padding: 25px;
+    margin: 15px;
+    transition: 0.7s ease;
+    min-width: 12.5em;
+}
+
+.card:hover {
+    transform: scale(1.05);
+}
+
+.icon{
+    color:  rgb(87, 77, 58)  ;
+    font-size: 8em ;
+    text-align: center;
+}
+
+.info{
+    text-align: center;
+}
+
+.info h3{
+    color:  rgb(87, 77, 58);
+    font-size: 1.2em;
+    font-weight: 700;
+    margin: 10px;
+}
+
+.projects{
+    background-color:#000016 ;
+}
+
+.projects .content{
+    margin-top: 30px;
+}
+
+.project-card{
+    background-color: #fff;
+    border: 1px solid #fff;
+    min-height: 14em;
+    width: 23em;
+    overflow: hidden;
+    border-radius: 10px;
+    margin: 20px;
+    transition: 0.7s ease;
+}
+
+.project-card:hover {
+    transform: scale(1.05); 
+}
+.project-card:hover .project-image{
+    opacity: 0.9;
+}
+.project-image img{
+    width: 100%;
+}
+
+.project-info{
+    padding: 1em;
+}
+
+.project-category{
+    font-size: 0.8em;
+    color: black;
+}
+
+.project-title {
+    display: flex;
+    flex-direction: column; 
+    gap: 15px; 
+    text-transform: none; 
+    margin-top: 15px;
+    font-weight: 600;
+    line-height: 1.6; 
+    text-align: right; 
+}
+
+.project-title a {
+    align-self: flex-start;
+}
+
+.more-details{
+    text-decoration: none;
+    color: #3a6cf4;
+}
+
+.more-details:hover{
+    color: #601cfc;
+}
+
+.content .icon{
+    font-size: 4.5em;
+}
+
+.content .info h3 {
+    color: black;
+}
+
+.content .info p {
+    font-size: 1.5em;
+}
+
+.footer{
+    background-color: #000016;
+    color: #fff;
+    padding: 2em;
+    display: flex;
+    justify-content: space-between;
+}
+
+.footer-title{
+    font-size: 1.3em;
+    font-weight: 600;
+}
+
+.footer-title span{
+    color: bisque;
+}
+
+@media (max-width:1023px){
+   header{
+    padding: 12px 20px;
+   }
+    
+   .navigation a{
+    padding-left: 10px;
+   }
+
+   .title{
+    font-size: 1.8em;
+   }
+
+   section {
+    padding:80px 20px ;
+   }
+
+   .main-content h2{
+    font-size: 1em;
+   }
+
+   .main-content h3{
+    font-size: 1.6em;
+   }
+   .content{
+    flex-direction: column;
+    align-items: center;
+   }
+}
+
+@media (max-width:641px){ 
+    body{
+        font-size: 12px;
+    }
+    .main-content h2{
+        font-size: 0.8em;
+    }
+    .main-content h3{
+        font-size: 1.4em;
+    }
+}
+
+@media (max-width:300px){
+    body{
+        font-size: 10px;
+    }
+}
+
+/* ------------------------------------------- */
+/* تنسيقات الصور داخل كروت المشاريع (Projects) */
+/* ------------------------------------------- */
+
+.project-info img {
+    width: 100%;
+    border-radius: 8px;
+    margin-top: 15px;
+    margin-bottom: 15px;
+    transition: 0.5s ease;
+}
+
+.project-card:hover .project-info img {
+    opacity: 0.9;
+}
+
+/* ------------------------------------------- */
+/* التنسيقات الجديدة الخاصة بصور الـ Services */
+/* ------------------------------------------- */
+
+.image-gallery {
+    display: flex;
+    justify-content: center;
+    gap: 15px; /* المسافة المريحة بين الصورتين */
+    margin: 15px 0;
+}
+
+.image-gallery img {
+    width: 45%; /* عشان الصورتين ياخدوا مساحة متساوية */
+    border-radius: 8px;
+    object-fit: cover;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    transition: 0.3s ease;
+}
+
+.image-gallery img:hover {
+    transform: scale(1.08); /* تأثير التكبير عند الوقوف عليها */
+}
+
+/* تنسيق فيديو الـ Services عشان ميبوظش حجم الكارت */
+.info video {
+    max-width: 100%;
+    border-radius: 8px;
+    margin: 15px 0;
+}
