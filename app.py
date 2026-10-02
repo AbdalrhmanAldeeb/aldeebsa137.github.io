@@ -89,7 +89,6 @@ col3.metric("متوسط الصرف 📊", f"{avg_per_day:.2f} ج.م/يوم")
 
 st.markdown("---")
 
-# تقسيم الشاشة لتابين عشان الزحمة
 tab_main_exp, tab_main_inc = st.tabs(["💸 سجل المصاريف", "💵 سجل الأرصدة المضافة"])
 
 # ==========================================
@@ -97,9 +96,31 @@ tab_main_exp, tab_main_inc = st.tabs(["💸 سجل المصاريف", "💵 سج
 # ==========================================
 with tab_main_exp:
     if not df_exp.empty:
-        st.subheader("📊 المصاريف حسب كل بند")
-        category_group = df_exp.groupby('category')['amount'].sum().reset_index()
-        st.bar_chart(category_group.set_index('category'))
+        st.subheader("📊 تفاصيل المصاريف حسب كل بند")
+        
+        # --- التعديل الجديد: حساب الإحصائيات لكل بند ---
+        cat_stats = df_exp.groupby('category').agg(
+            إجمالي_المبلغ=('amount', 'sum'),
+            عدد_المرات=('amount', 'count'),
+            متوسط_الصرف=('amount', 'mean')
+        ).reset_index()
+        
+        # تقريب الأرقام لسهولة القراءة
+        cat_stats['إجمالي_المبلغ'] = cat_stats['إجمالي_المبلغ'].round(2)
+        cat_stats['متوسط_الصرف'] = cat_stats['متوسط_الصرف'].round(2)
+        
+        # عرض الرسم البياني
+        st.bar_chart(cat_stats.set_index('category')['إجمالي_المبلغ'])
+        
+        # عرض جدول ملخص البنود
+        st.write("**ملخص البنود (الإجمالي والمتوسط):**")
+        st.dataframe(cat_stats.rename(columns={
+            'category': 'البند',
+            'إجمالي_المبلغ': 'إجمالي الصرف (ج.م)',
+            'عدد_المرات': 'عدد مرات الصرف',
+            'متوسط_الصرف': 'متوسط المرة الواحدة (ج.م)'
+        }), use_container_width=True)
+        # ---------------------------------------------
         
         st.markdown("---")
         st.subheader("⚙️ تعديل أو حذف مصروف")
@@ -168,7 +189,6 @@ with tab_main_exp:
 with tab_main_inc:
     if not df_inc.empty:
         st.subheader("⚙️ تعديل أو حذف رصيد مضاف")
-        # معالجة الوصف لو كان فاضي عشان مايطلعش خطأ
         df_inc['desc_str'] = df_inc['description'].fillna('بدون وصف').astype(str)
         df_inc['display_text'] = df_inc['date'].astype(str) + " | " + df_inc['amount'].astype(str) + " ج.م | " + df_inc['desc_str']
         
