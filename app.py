@@ -22,9 +22,9 @@ try:
     try:
         c.execute("ALTER TABLE expenses ADD COLUMN id SERIAL PRIMARY KEY")
     except Exception:
-        pass # العمود موجود بالفعل
+        pass 
 
-    # إنشاء جدول الرصيد (الإيداعات) الجديد
+    # إنشاء جدول الرصيد (الإيداعات)
     c.execute('''CREATE TABLE IF NOT EXISTS income
                  (id SERIAL PRIMARY KEY, date TEXT, amount REAL, description TEXT)''')
 
@@ -36,10 +36,10 @@ st.title("💰 متتبع المصاريف الشخصية")
 
 # --- واجهة الإدخال في القائمة الجانبية ---
 st.sidebar.title("إدارة الأموال 💼")
-tab_expense, tab_income = st.sidebar.tabs(["إضافة مصروف 💸", "إضافة رصيد 💵"])
+tab_sidebar_exp, tab_sidebar_inc = st.sidebar.tabs(["إضافة مصروف 💸", "إضافة رصيد 💵"])
 
 # تاب إضافة المصروف
-with tab_expense:
+with tab_sidebar_exp:
     categories = ["طعام ومشروبات", "مواصلات", "فواتير واشتراكات", "استثمارات", "كورسات وتعليم", "ترفيه", "أخرى"]
     date_input = st.date_input("التاريخ", datetime.today(), key="exp_date")
     category_input = st.selectbox("القسم (البند)", categories, key="exp_cat")
@@ -56,10 +56,10 @@ with tab_expense:
             st.error("يرجى إدخال مبلغ أكبر من الصفر.")
 
 # تاب إضافة الرصيد
-with tab_income:
+with tab_sidebar_inc:
     inc_date = st.date_input("التاريخ", datetime.today(), key="inc_date")
     inc_amount = st.number_input("المبلغ المراد إضافته", min_value=0.0, format="%.2f", key="inc_amt")
-    inc_desc = st.text_input("مصدر الرصيد (اختياري) مثلا: الفلوس الحالية، راتب", key="inc_desc")
+    inc_desc = st.text_input("مصدر الرصيد (اختياري)", key="inc_desc")
     
     if st.button("إضافة للرصيد"):
         if inc_amount > 0:
@@ -74,19 +74,12 @@ with tab_income:
 df_exp = pd.read_sql("SELECT * FROM expenses ORDER BY date DESC, id DESC", conn)
 df_inc = pd.read_sql("SELECT * FROM income ORDER BY date DESC, id DESC", conn)
 
-# حساب الإجماليات
 total_expenses = df_exp['amount'].sum() if not df_exp.empty else 0
 total_income = df_inc['amount'].sum() if not df_inc.empty else 0
 current_balance = total_income - total_expenses
 
-# عرض البطاقات العلوية (3 أعمدة)
 col1, col2, col3 = st.columns(3)
-
-# لو الرصيد أقل من صفر هيظهر باللون الأحمر للتنبيه
-balance_delta = None
-if current_balance < 0:
-    balance_delta = "- رصيد بالسالب"
-
+balance_delta = "- رصيد بالسالب" if current_balance < 0 else None
 col1.metric("الرصيد المتاح 💵", f"{current_balance:.2f} ج.م", delta=balance_delta, delta_color="inverse")
 col2.metric("إجمالي المصاريف 💸", f"{total_expenses:.2f} ج.م")
 
@@ -96,75 +89,128 @@ col3.metric("متوسط الصرف 📊", f"{avg_per_day:.2f} ج.م/يوم")
 
 st.markdown("---")
 
-if not df_exp.empty:
-    # الرسوم البيانية
-    st.subheader("📊 المصاريف حسب كل بند")
-    category_group = df_exp.groupby('category')['amount'].sum().reset_index()
-    st.bar_chart(category_group.set_index('category'))
-    
-    st.markdown("---")
-    
-    # قسم التعديل والحذف
-    st.subheader("⚙️ تعديل أو حذف مصروف")
-    df_exp['display_text'] = df_exp['date'].astype(str) + " | " + df_exp['category'] + " | " + df_exp['amount'].astype(str) + " ج.م"
-    options_dict = dict(zip(df_exp['id'], df_exp['display_text']))
-    
-    selected_id = st.selectbox("اختر المصروف الذي تريد تعديله أو حذفه:", 
-                               options=list(options_dict.keys()), 
-                               format_func=lambda x: options_dict[x])
-    
-    if selected_id:
-        row_data = df_exp[df_exp['id'] == selected_id].iloc[0]
-        col_edit, col_delete = st.columns(2)
+# تقسيم الشاشة لتابين عشان الزحمة
+tab_main_exp, tab_main_inc = st.tabs(["💸 سجل المصاريف", "💵 سجل الأرصدة المضافة"])
+
+# ==========================================
+#             تاب سجل المصاريف
+# ==========================================
+with tab_main_exp:
+    if not df_exp.empty:
+        st.subheader("📊 المصاريف حسب كل بند")
+        category_group = df_exp.groupby('category')['amount'].sum().reset_index()
+        st.bar_chart(category_group.set_index('category'))
         
-        with col_edit:
-            with st.expander("✏️ تعديل المصروف"):
-                with st.form("edit_form"):
-                    new_date = st.date_input("التاريخ الجديد", pd.to_datetime(row_data['date']).date())
-                    cat_index = categories.index(row_data['category']) if row_data['category'] in categories else 0
-                    new_category = st.selectbox("القسم الجديد", categories, index=cat_index)
-                    new_amount = st.number_input("المبلغ الجديد", min_value=0.0, value=float(row_data['amount']), format="%.2f")
-                    current_desc = row_data['description'] if pd.notna(row_data['description']) else ""
-                    new_desc = st.text_input("الوصف الجديد", value=str(current_desc))
-                    
-                    if st.form_submit_button("حفظ التعديلات"):
-                        c.execute("UPDATE expenses SET date=%s, category=%s, amount=%s, description=%s WHERE id=%s",
-                                  (new_date.strftime("%Y-%m-%d"), new_category, new_amount, new_desc, selected_id))
-                        st.success("تم التعديل! جاري التحديث...")
+        st.markdown("---")
+        st.subheader("⚙️ تعديل أو حذف مصروف")
+        df_exp['display_text'] = df_exp['date'].astype(str) + " | " + df_exp['category'] + " | " + df_exp['amount'].astype(str) + " ج.م"
+        exp_options = dict(zip(df_exp['id'], df_exp['display_text']))
+        
+        selected_exp_id = st.selectbox("اختر المصروف لتعديله أو حذفه:", 
+                                   options=list(exp_options.keys()), 
+                                   format_func=lambda x: exp_options[x], key="edit_exp")
+        
+        if selected_exp_id:
+            row_data = df_exp[df_exp['id'] == selected_exp_id].iloc[0]
+            col_e1, col_e2 = st.columns(2)
+            
+            with col_e1:
+                with st.expander("✏️ تعديل"):
+                    with st.form("edit_exp_form"):
+                        new_date = st.date_input("التاريخ", pd.to_datetime(row_data['date']).date())
+                        cat_index = categories.index(row_data['category']) if row_data['category'] in categories else 0
+                        new_category = st.selectbox("القسم", categories, index=cat_index)
+                        new_amount = st.number_input("المبلغ", min_value=0.0, value=float(row_data['amount']), format="%.2f")
+                        current_desc = row_data['description'] if pd.notna(row_data['description']) else ""
+                        new_desc = st.text_input("الوصف", value=str(current_desc))
+                        
+                        if st.form_submit_button("حفظ التعديل"):
+                            c.execute("UPDATE expenses SET date=%s, category=%s, amount=%s, description=%s WHERE id=%s",
+                                      (new_date.strftime("%Y-%m-%d"), new_category, new_amount, new_desc, selected_exp_id))
+                            st.success("تم التعديل!")
+                            st.rerun()
+            
+            with col_e2:
+                with st.expander("🗑️ حذف"):
+                    st.warning("تحذير: لا يمكن التراجع!")
+                    if st.button("نعم، تأكيد الحذف", key="del_exp_btn"):
+                        c.execute("DELETE FROM expenses WHERE id=%s", (selected_exp_id,))
+                        st.success("تم الحذف!")
                         st.rerun()
+
+        st.markdown("---")
+        st.subheader("📝 السجل الكامل للمصاريف")
+        display_exp_df = df_exp.drop(columns=['id', 'display_text'])
+        st.dataframe(display_exp_df.rename(columns={
+            'date': 'التاريخ', 
+            'category': 'البند', 
+            'amount': 'المبلغ', 
+            'description': 'الوصف'
+        }), use_container_width=True)
+
+        st.markdown("---")
+        buffer = io.BytesIO()
+        with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+            display_exp_df.rename(columns={'date': 'التاريخ', 'category': 'البند', 'amount': 'المبلغ', 'description': 'الوصف'}).to_excel(writer, index=False, sheet_name='المصاريف')
         
-        with col_delete:
-            with st.expander("🗑️ حذف المصروف"):
-                st.warning("تحذير: لا يمكن التراجع عن هذا الإجراء!")
-                if st.button("نعم، تأكيد الحذف"):
-                    c.execute("DELETE FROM expenses WHERE id=%s", (selected_id,))
-                    st.success("تم الحذف! جاري التحديث...")
-                    st.rerun()
+        st.download_button(
+            label="تحميل البيانات كملف Excel 📊",
+            data=buffer.getvalue(),
+            file_name=f"expenses_{datetime.today().strftime('%Y-%m-%d')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+    else:
+        st.info("لم يتم إضافة أي مصاريف حتى الآن.")
 
-    st.markdown("---")
-    st.subheader("📝 السجل الكامل للمصاريف")
-    display_df = df_exp.drop(columns=['id', 'display_text'])
-    st.dataframe(display_df.rename(columns={
-        'date': 'التاريخ', 
-        'category': 'البند', 
-        'amount': 'المبلغ', 
-        'description': 'الوصف'
-    }), use_container_width=True)
+# ==========================================
+#             تاب سجل الأرصدة
+# ==========================================
+with tab_main_inc:
+    if not df_inc.empty:
+        st.subheader("⚙️ تعديل أو حذف رصيد مضاف")
+        # معالجة الوصف لو كان فاضي عشان مايطلعش خطأ
+        df_inc['desc_str'] = df_inc['description'].fillna('بدون وصف').astype(str)
+        df_inc['display_text'] = df_inc['date'].astype(str) + " | " + df_inc['amount'].astype(str) + " ج.م | " + df_inc['desc_str']
+        
+        inc_options = dict(zip(df_inc['id'], df_inc['display_text']))
+        
+        selected_inc_id = st.selectbox("اختر الرصيد لتعديله أو حذفه:", 
+                                   options=list(inc_options.keys()), 
+                                   format_func=lambda x: inc_options[x], key="edit_inc")
+        
+        if selected_inc_id:
+            row_data = df_inc[df_inc['id'] == selected_inc_id].iloc[0]
+            col_i1, col_i2 = st.columns(2)
+            
+            with col_i1:
+                with st.expander("✏️ تعديل"):
+                    with st.form("edit_inc_form"):
+                        new_date = st.date_input("التاريخ", pd.to_datetime(row_data['date']).date())
+                        new_amount = st.number_input("المبلغ", min_value=0.0, value=float(row_data['amount']), format="%.2f")
+                        current_desc = row_data['description'] if pd.notna(row_data['description']) else ""
+                        new_desc = st.text_input("الوصف (المصدر)", value=str(current_desc))
+                        
+                        if st.form_submit_button("حفظ التعديل"):
+                            c.execute("UPDATE income SET date=%s, amount=%s, description=%s WHERE id=%s",
+                                      (new_date.strftime("%Y-%m-%d"), new_amount, new_desc, selected_inc_id))
+                            st.success("تم التعديل!")
+                            st.rerun()
+            
+            with col_i2:
+                with st.expander("🗑️ حذف"):
+                    st.warning("تحذير: لا يمكن التراجع!")
+                    if st.button("نعم، تأكيد الحذف", key="del_inc_btn"):
+                        c.execute("DELETE FROM income WHERE id=%s", (selected_inc_id,))
+                        st.success("تم الحذف!")
+                        st.rerun()
 
-    st.markdown("---")
-    st.subheader("📥 تصدير البيانات")
-    buffer = io.BytesIO()
-    df_excel = display_df.rename(columns={'date': 'التاريخ', 'category': 'البند', 'amount': 'المبلغ', 'description': 'الوصف'})
-    
-    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-        df_excel.to_excel(writer, index=False, sheet_name='سجل المصاريف')
-    
-    st.download_button(
-        label="تحميل البيانات كملف Excel 📊",
-        data=buffer.getvalue(),
-        file_name=f"expenses_{datetime.today().strftime('%Y-%m-%d')}.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
-
-else:
-    st.info("لم يتم إضافة أي مصاريف حتى الآن.")
+        st.markdown("---")
+        st.subheader("📝 السجل الكامل للأرصدة المضافة")
+        display_inc_df = df_inc.drop(columns=['id', 'display_text', 'desc_str'])
+        st.dataframe(display_inc_df.rename(columns={
+            'date': 'التاريخ', 
+            'amount': 'المبلغ', 
+            'description': 'مصدر الرصيد / الوصف'
+        }), use_container_width=True)
+    else:
+        st.info("لم يتم إضافة أي أرصدة حتى الآن.")
