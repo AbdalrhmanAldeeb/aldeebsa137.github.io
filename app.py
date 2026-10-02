@@ -7,12 +7,13 @@ import warnings
 
 warnings.filterwarnings('ignore')
 
-@st.cache_resource
-def init_connection():
+# دالة لفتح اتصال جديد ونظيف مع قاعدة البيانات في كل مرة
+def get_connection():
     return psycopg2.connect(st.secrets["DATABASE_URL"])
 
 try:
-    conn = init_connection()
+    # فتح الاتصال مباشرة بدون كاش قديم يتقطع
+    conn = get_connection()
     conn.autocommit = True
     c = conn.cursor()
 
@@ -48,8 +49,12 @@ with tab_sidebar_exp:
 
     if st.button("إضافة المصروف"):
         if amount_input > 0:
-            c.execute("INSERT INTO expenses (date, category, amount, description) VALUES (%s, %s, %s, %s)", 
-                      (date_input.strftime("%Y-%m-%d"), category_input, amount_input, desc_input))
+            # إعادة فتح اتصال لتنفيذ العملية بأمان
+            with get_connection() as write_conn:
+                write_conn.autocommit = True
+                with write_conn.cursor() as write_c:
+                    write_c.execute("INSERT INTO expenses (date, category, amount, description) VALUES (%s, %s, %s, %s)", 
+                              (date_input.strftime("%Y-%m-%d"), category_input, amount_input, desc_input))
             st.success("تمت الإضافة بنجاح! 💸")
             st.rerun()
         else:
@@ -63,16 +68,25 @@ with tab_sidebar_inc:
     
     if st.button("إضافة للرصيد"):
         if inc_amount > 0:
-            c.execute("INSERT INTO income (date, amount, description) VALUES (%s, %s, %s)", 
-                      (inc_date.strftime("%Y-%m-%d"), inc_amount, inc_desc))
+            with get_connection() as write_conn:
+                write_conn.autocommit = True
+                with write_conn.cursor() as write_c:
+                    write_c.execute("INSERT INTO income (date, amount, description) VALUES (%s, %s, %s)", 
+                              (inc_date.strftime("%Y-%m-%d"), inc_amount, inc_desc))
             st.success("تمت إضافة الرصيد بنجاح! 💵")
             st.rerun()
         else:
             st.error("يرجى إدخال مبلغ أكبر من الصفر.")
 
-# --- حساب وعرض البيانات ---
-df_exp = pd.read_sql("SELECT * FROM expenses ORDER BY date DESC, id DESC", conn)
-df_inc = pd.read_sql("SELECT * FROM income ORDER BY date DESC, id DESC", conn)
+# --- سحب وعرض البيانات باستخدام اتصال آمن ---
+try:
+    with get_connection() as read_conn:
+        df_exp = pd.read_sql("SELECT * FROM expenses ORDER BY date DESC, id DESC", read_conn)
+        df_inc = pd.read_sql("SELECT * FROM income ORDER BY date DESC, id DESC", read_conn)
+except Exception as e:
+    st.error(f"خطأ أثناء جلب البيانات: {e}")
+    df_exp = pd.DataFrame()
+    df_inc = pd.DataFrame()
 
 total_expenses = df_exp['amount'].sum() if not df_exp.empty else 0
 total_income = df_inc['amount'].sum() if not df_inc.empty else 0
@@ -98,13 +112,11 @@ with tab_main_exp:
     if not df_exp.empty:
         st.subheader("📊 تفاصيل المصاريف حسب كل بند")
         
-        # --- التعديل الجديد: حساب متوسط الصرف اليومي لكل بند ---
         cat_stats = df_exp.groupby('category').agg(
             إجمالي_المبلغ=('amount', 'sum'),
             عدد_المرات=('amount', 'count')
         ).reset_index()
         
-        # حساب متوسط اليوم بقسمة الإجمالي على عدد الأيام الكلية
         cat_stats['متوسط_اليوم'] = (cat_stats['إجمالي_المبلغ'] / unique_days).round(2) if unique_days > 0 else 0
         cat_stats['إجمالي_المبلغ'] = cat_stats['إجمالي_المبلغ'].round(2)
         
@@ -117,7 +129,6 @@ with tab_main_exp:
             'عدد_المرات': 'عدد مرات الصرف',
             'متوسط_اليوم': 'متوسط الصرف في اليوم (ج.م)'
         }), use_container_width=True)
-        # ---------------------------------------------
         
         st.markdown("---")
         st.subheader("⚙️ تعديل أو حذف مصروف")
@@ -143,8 +154,11 @@ with tab_main_exp:
                         new_desc = st.text_input("الوصف", value=str(current_desc))
                         
                         if st.form_submit_button("حفظ التعديل"):
-                            c.execute("UPDATE expenses SET date=%s, category=%s, amount=%s, description=%s WHERE id=%s",
-                                      (new_date.strftime("%Y-%m-%d"), new_category, new_amount, new_desc, selected_exp_id))
+                            with get_connection() as update_conn:
+                                update_conn.autocommit = True
+                                with update_conn.cursor() as update_c:
+                                    update_c.execute("UPDATE expenses SET date=%s, category=%s, amount=%s, description=%s WHERE id=%s",
+                                              (new_date.strftime("%Y-%m-%d"), new_category, new_amount, new_desc, selected_exp_id))
                             st.success("تم التعديل!")
                             st.rerun()
             
@@ -152,7 +166,10 @@ with tab_main_exp:
                 with st.expander("🗑️ حذف"):
                     st.warning("تحذير: لا يمكن التراجع!")
                     if st.button("نعم، تأكيد الحذف", key="del_exp_btn"):
-                        c.execute("DELETE FROM expenses WHERE id=%s", (selected_exp_id,))
+                        with get_connection() as del_conn:
+                            del_conn.autocommit = True
+                            with del_conn.cursor() as del_c:
+                                del_c.execute("DELETE FROM expenses WHERE id=%s", (selected_exp_id,))
                         st.success("تم الحذف!")
                         st.rerun()
 
@@ -200,7 +217,7 @@ with tab_main_inc:
             col_i1, col_i2 = st.columns(2)
             
             with col_i1:
-                with st.expander("✏️ تعديل"):
+                with st.expander("✏️️ تعديل"):
                     with st.form("edit_inc_form"):
                         new_date = st.date_input("التاريخ", pd.to_datetime(row_data['date']).date())
                         new_amount = st.number_input("المبلغ", min_value=0.0, value=float(row_data['amount']), format="%.2f")
@@ -208,8 +225,11 @@ with tab_main_inc:
                         new_desc = st.text_input("الوصف (المصدر)", value=str(current_desc))
                         
                         if st.form_submit_button("حفظ التعديل"):
-                            c.execute("UPDATE income SET date=%s, amount=%s, description=%s WHERE id=%s",
-                                      (new_date.strftime("%Y-%m-%d"), new_amount, new_desc, selected_inc_id))
+                            with get_connection() as update_inc_conn:
+                                update_inc_conn.autocommit = True
+                                with update_inc_conn.cursor() as update_inc_c:
+                                    update_inc_c.execute("UPDATE income SET date=%s, amount=%s, description=%s WHERE id=%s",
+                                              (new_date.strftime("%Y-%m-%d"), new_amount, new_desc, selected_inc_id))
                             st.success("تم التعديل!")
                             st.rerun()
             
@@ -217,7 +237,10 @@ with tab_main_inc:
                 with st.expander("🗑️ حذف"):
                     st.warning("تحذير: لا يمكن التراجع!")
                     if st.button("نعم، تأكيد الحذف", key="del_inc_btn"):
-                        c.execute("DELETE FROM income WHERE id=%s", (selected_inc_id,))
+                        with get_connection() as del_inc_conn:
+                            del_inc_conn.autocommit = True
+                            with del_inc_conn.cursor() as del_inc_c:
+                                del_inc_c.execute("DELETE FROM income WHERE id=%s", (selected_inc_id,))
                         st.success("تم الحذف!")
                         st.rerun()
 
