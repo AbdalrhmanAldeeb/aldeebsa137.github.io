@@ -7,17 +7,54 @@ import warnings
 
 warnings.filterwarnings('ignore')
 
-# دالة لفتح اتصال جديد ونظيف مع قاعدة البيانات في كل مرة
+# إعدادات الصفحة (لازم تكون أول حاجة)
+st.set_page_config(page_title="متتبع المصاريف", page_icon="💰", layout="centered")
+
+# ==========================================
+#             نظام تسجيل الدخول
+# ==========================================
+if "authenticated" not in st.session_state:
+    st.session_state["authenticated"] = False
+
+def logout():
+    st.session_state["authenticated"] = False
+
+if not st.session_state["authenticated"]:
+    st.title("🔒 تسجيل الدخول")
+    st.markdown("يرجى إدخال بيانات الاعتماد للوصول إلى متتبع المصاريف.")
+    
+    with st.form("login_form"):
+        username = st.text_input("اسم المستخدم")
+        password = st.text_input("كلمة المرور", type="password")
+        submit = st.form_submit_button("دخول")
+        
+        if submit:
+            # التحقق من البيانات الموجودة في الخزنة السرية
+            if username == st.secrets["APP_USERNAME"] and password == st.secrets["APP_PASSWORD"]:
+                st.session_state["authenticated"] = True
+                st.rerun()
+            else:
+                st.error("❌ اسم المستخدم أو كلمة المرور غير صحيحة!")
+    
+    # إيقاف تشغيل باقي الكود إذا لم يتم تسجيل الدخول
+    st.stop()
+
+# ==========================================
+#         البرنامج الرئيسي (بعد الدخول)
+# ==========================================
+
+# زر تسجيل الخروج في القائمة الجانبية
+st.sidebar.button("تسجيل الخروج 🚪", on_click=logout, use_container_width=True)
+st.sidebar.markdown("---")
+
 def get_connection():
     return psycopg2.connect(st.secrets["DATABASE_URL"])
 
 try:
-    # فتح الاتصال مباشرة بدون كاش قديم يتقطع
     conn = get_connection()
     conn.autocommit = True
     c = conn.cursor()
 
-    # إنشاء جدول المصاريف
     c.execute('''CREATE TABLE IF NOT EXISTS expenses
                  (date TEXT, category TEXT, amount REAL, description TEXT)''')
     try:
@@ -25,21 +62,18 @@ try:
     except Exception:
         pass 
 
-    # إنشاء جدول الرصيد (الإيداعات)
     c.execute('''CREATE TABLE IF NOT EXISTS income
                  (id SERIAL PRIMARY KEY, date TEXT, amount REAL, description TEXT)''')
 
 except Exception as e:
     st.error(f"خطأ في الاتصال بقاعدة البيانات: {e}")
+    st.stop()
 
-st.set_page_config(page_title="متتبع المصاريف", page_icon="💰", layout="centered")
 st.title("💰 متتبع المصاريف الشخصية")
 
-# --- واجهة الإدخال في القائمة الجانبية ---
 st.sidebar.title("إدارة الأموال 💼")
 tab_sidebar_exp, tab_sidebar_inc = st.sidebar.tabs(["إضافة مصروف 💸", "إضافة رصيد 💵"])
 
-# تاب إضافة المصروف
 with tab_sidebar_exp:
     categories = ["طعام ومشروبات", "مواصلات", "فواتير واشتراكات", "استثمارات", "كورسات وتعليم", "ترفيه", "أخرى"]
     date_input = st.date_input("التاريخ", datetime.today(), key="exp_date")
@@ -49,7 +83,6 @@ with tab_sidebar_exp:
 
     if st.button("إضافة المصروف"):
         if amount_input > 0:
-            # إعادة فتح اتصال لتنفيذ العملية بأمان
             with get_connection() as write_conn:
                 write_conn.autocommit = True
                 with write_conn.cursor() as write_c:
@@ -60,7 +93,6 @@ with tab_sidebar_exp:
         else:
             st.error("يرجى إدخال مبلغ أكبر من الصفر.")
 
-# تاب إضافة الرصيد
 with tab_sidebar_inc:
     inc_date = st.date_input("التاريخ", datetime.today(), key="inc_date")
     inc_amount = st.number_input("المبلغ المراد إضافته", min_value=0.0, format="%.2f", key="inc_amt")
@@ -78,7 +110,6 @@ with tab_sidebar_inc:
         else:
             st.error("يرجى إدخال مبلغ أكبر من الصفر.")
 
-# --- سحب وعرض البيانات باستخدام اتصال آمن ---
 try:
     with get_connection() as read_conn:
         df_exp = pd.read_sql("SELECT * FROM expenses ORDER BY date DESC, id DESC", read_conn)
@@ -105,9 +136,6 @@ st.markdown("---")
 
 tab_main_exp, tab_main_inc = st.tabs(["💸 سجل المصاريف", "💵 سجل الأرصدة المضافة"])
 
-# ==========================================
-#             تاب سجل المصاريف
-# ==========================================
 with tab_main_exp:
     if not df_exp.empty:
         st.subheader("📊 تفاصيل المصاريف حسب كل بند")
@@ -197,9 +225,6 @@ with tab_main_exp:
     else:
         st.info("لم يتم إضافة أي مصاريف حتى الآن.")
 
-# ==========================================
-#             تاب سجل الأرصدة
-# ==========================================
 with tab_main_inc:
     if not df_inc.empty:
         st.subheader("⚙️ تعديل أو حذف رصيد مضاف")
@@ -217,7 +242,7 @@ with tab_main_inc:
             col_i1, col_i2 = st.columns(2)
             
             with col_i1:
-                with st.expander("✏️️ تعديل"):
+                with st.expander("✏️ تعديل"):
                     with st.form("edit_inc_form"):
                         new_date = st.date_input("التاريخ", pd.to_datetime(row_data['date']).date())
                         new_amount = st.number_input("المبلغ", min_value=0.0, value=float(row_data['amount']), format="%.2f")
