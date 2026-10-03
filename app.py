@@ -7,7 +7,6 @@ import warnings
 
 warnings.filterwarnings('ignore')
 
-# إعدادات الصفحة (لازم تكون أول حاجة)
 st.set_page_config(page_title="متتبع المصاريف", page_icon="💰", layout="centered")
 
 # ==========================================
@@ -29,21 +28,16 @@ if not st.session_state["authenticated"]:
         submit = st.form_submit_button("دخول")
         
         if submit:
-            # التحقق من البيانات الموجودة في الخزنة السرية
             if username == st.secrets["APP_USERNAME"] and password == st.secrets["APP_PASSWORD"]:
                 st.session_state["authenticated"] = True
                 st.rerun()
             else:
                 st.error("❌ اسم المستخدم أو كلمة المرور غير صحيحة!")
-    
-    # إيقاف تشغيل باقي الكود إذا لم يتم تسجيل الدخول
     st.stop()
 
 # ==========================================
 #         البرنامج الرئيسي (بعد الدخول)
 # ==========================================
-
-# زر تسجيل الخروج في القائمة الجانبية
 st.sidebar.button("تسجيل الخروج 🚪", on_click=logout, use_container_width=True)
 st.sidebar.markdown("---")
 
@@ -128,9 +122,9 @@ balance_delta = "- رصيد بالسالب" if current_balance < 0 else None
 col1.metric("الرصيد المتاح 💵", f"{current_balance:.2f} ج.م", delta=balance_delta, delta_color="inverse")
 col2.metric("إجمالي المصاريف 💸", f"{total_expenses:.2f} ج.م")
 
-unique_days = df_exp['date'].nunique() if not df_exp.empty else 0
-avg_per_day = total_expenses / unique_days if unique_days > 0 else 0
-col3.metric("متوسط الصرف 📊", f"{avg_per_day:.2f} ج.م/يوم")
+unique_days_all = df_exp['date'].nunique() if not df_exp.empty else 0
+avg_per_day_all = total_expenses / unique_days_all if unique_days_all > 0 else 0
+col3.metric("متوسط الصرف العام 📊", f"{avg_per_day_all:.2f} ج.م/يوم")
 
 st.markdown("---")
 
@@ -140,22 +134,26 @@ with tab_main_exp:
     if not df_exp.empty:
         st.subheader("📊 تفاصيل المصاريف حسب كل بند")
         
+        # التعديل الجديد: حساب الأيام لكل بند بشكل مستقل
         cat_stats = df_exp.groupby('category').agg(
             إجمالي_المبلغ=('amount', 'sum'),
-            عدد_المرات=('amount', 'count')
+            عدد_المرات=('amount', 'count'),
+            أيام_الصرف=('date', 'nunique') # بيحسب عدد الأيام اللي حصل فيها صرف للبند ده بس
         ).reset_index()
         
-        cat_stats['متوسط_اليوم'] = (cat_stats['إجمالي_المبلغ'] / unique_days).round(2) if unique_days > 0 else 0
+        # حساب متوسط اليوم بناءً على أيام البند فقط
+        cat_stats['متوسط_اليوم_للبند'] = (cat_stats['إجمالي_المبلغ'] / cat_stats['أيام_الصرف']).round(2)
         cat_stats['إجمالي_المبلغ'] = cat_stats['إجمالي_المبلغ'].round(2)
         
         st.bar_chart(cat_stats.set_index('category')['إجمالي_المبلغ'])
         
-        st.write("**ملخص البنود (الإجمالي والمتوسط اليومي):**")
+        st.write("**ملخص البنود (التقييم حسب أيام استخدام البند):**")
         st.dataframe(cat_stats.rename(columns={
             'category': 'البند',
             'إجمالي_المبلغ': 'إجمالي الصرف (ج.م)',
-            'عدد_المرات': 'عدد مرات الصرف',
-            'متوسط_اليوم': 'متوسط الصرف في اليوم (ج.م)'
+            'عدد_المرات': 'عدد الحركات',
+            'أيام_الصرف': 'عدد أيام الصرف',
+            'متوسط_اليوم_للبند': 'متوسط البند/يوم (ج.م)'
         }), use_container_width=True)
         
         st.markdown("---")
