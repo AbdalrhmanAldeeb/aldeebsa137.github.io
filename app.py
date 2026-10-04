@@ -55,24 +55,6 @@ if not st.session_state["authenticated"]:
             
             if is_admin or is_guest:
                 st.session_state.update({"authenticated": True, "role": "admin" if is_admin else "guest"})
-                try:
-                    headers = st.context.headers
-                    ip = headers.get("X-Forwarded-For", "غير متوفر").split(",")[0].strip()
-                    user_agent = headers.get("User-Agent", "غير متوفر")
-                    location = "غير متوفر"
-                    if ip != "غير متوفر":
-                        try:
-                            req = urllib.request.Request(f"http://ip-api.com/json/{ip}", headers={'User-Agent': 'Mozilla/5.0'})
-                            with urllib.request.urlopen(req, timeout=3) as response:
-                                data = json.loads(response.read().decode())
-                                if data.get("status") == "success": location = f"{data.get('country', '')} - {data.get('city', '')}"
-                        except: pass
-                    with get_connection() as log_conn:
-                        log_conn.autocommit = True
-                        with log_conn.cursor() as log_c:
-                            log_c.execute("INSERT INTO access_logs (timestamp, username, ip_address, device_info, location) VALUES (%s, %s, %s, %s, %s)",
-                                          (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), username, ip, user_agent, location))
-                except: pass
                 st.rerun()
             else:
                 st.error("❌ بيانات الدخول غير صحيحة!")
@@ -219,8 +201,8 @@ total_exp_view = df_exp_view['amount'].sum() if not df_exp_view.empty and 'amoun
 #                التابات
 # ==========================================
 if st.session_state["role"] == "admin":
-    tabs = st.tabs(["📊 المصاريف والميزانية", "🤝 الديون والتوفير", "🤖 المستشار الذكي (Gemini)", "💵 الأرصدة", "🛡️ الأمان"])
-    tab_exp, tab_plan, tab_ai, tab_inc, tab_sec = tabs
+    tabs = st.tabs(["📊 المصاريف والميزانية", "🤝 الديون والتوفير", "🤖 المستشار الذكي", "💵 الأرصدة"])
+    tab_exp, tab_plan, tab_ai, tab_inc = tabs
 else:
     tabs = st.tabs(["📊 المصاريف", "💵 الأرصدة"])
     tab_exp, tab_inc = tabs
@@ -238,20 +220,36 @@ if st.session_state["role"] == "admin":
         st.dataframe(df_debts.drop(columns=['id'], errors='ignore'), use_container_width=True)
         st.dataframe(df_savings.drop(columns=['id'], errors='ignore'), use_container_width=True)
 
-    # ---------------------------------------------------------
-    # الجزء الخاص بالذكاء الاصطناعي الفعلي (Gemini)
-    # ---------------------------------------------------------
     with tab_ai:
-        st.subheader("🤖 أنا المستشار الخوارزمي (عقلي من Gemini) - اسألني أي حاجة!")
+        st.subheader("🤖 أنا المستشار الخوارزمي (عقلي من Gemini)")
         
-        # تجهيز البيانات عشان أقرأها وأفهم موقفك المالي
+        # ⚠️️ الزرار السحري للفحص ⚠️
+        if st.button("🛠️ فحص نظام الذكاء الاصطناعي (اضغط هنا لمعرفة العطل)"):
+            st.write("بدأ الفحص...")
+            try:
+                import google.generativeai as genai
+                st.success("✅ خطوة 1: مكتبة الذكاء الاصطناعي موجودة وشغالة.")
+                
+                try:
+                    api_key = st.secrets["GEMINI_API_KEY"]
+                    st.success(f"✅ خطوة 2: المفتاح موجود في الخزنة وبيبدأ بـ: {api_key[:5]}...")
+                    
+                    try:
+                        genai.configure(api_key=api_key)
+                        model = genai.GenerativeModel('gemini-1.5-flash')
+                        response = model.generate_content("قول 'مرحبا' بس")
+                        st.success(f"✅ خطوة 3: الاتصال بجوجل نجح! رد الذكاء الاصطناعي: {response.text}")
+                    except Exception as e_api:
+                        st.error(f"❌ العطل في خطوة 3 (مشكلة في الاتصال أو المفتاح مرفوض). التفاصيل التقنية: {repr(e_api)}")
+                except Exception as e_key:
+                    st.error(f"❌ العطل في خطوة 2 (مشكلة في قراءة المفتاح من الخزنة). التفاصيل: {repr(e_key)}")
+            except Exception as e_lib:
+                st.error(f"❌ العطل في خطوة 1 (مكتبة الذكاء الاصطناعي متسطبتش صح). التفاصيل: {repr(e_lib)}")
+
+        st.markdown("---")
+        
         cat_totals_dict = df_exp_view.groupby('category')['amount'].sum().to_dict() if not df_exp_view.empty else {}
-        context_data = f"""
-        معلومات المستخدم المالية الحالية:
-        - الرصيد الإجمالي المتبقي: {total_bal_all} جنيه.
-        - مصاريف هذا الشهر: {total_exp_view} جنيه.
-        - تفاصيل المصاريف مقسمة: {cat_totals_dict}
-        """
+        context_data = f"الرصيد: {total_bal_all} جنيه. المصاريف: {total_exp_view} جنيه. تفاصيل: {cat_totals_dict}"
 
         if "chat_history" not in st.session_state:
             st.session_state.chat_history = []
@@ -272,24 +270,13 @@ if st.session_state["role"] == "admin":
                     import google.generativeai as genai
                     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
                     model = genai.GenerativeModel('gemini-1.5-flash')
-                    
-                    full_prompt = f"أنت مستشار مالي مصري ذكي وصديق للمستخدم، اسمك الخوارزمي. استخدم هذه البيانات الحقيقية من قاعدة بيانات المستخدم للإجابة:\n{context_data}\n\nسؤال المستخدم: {prompt}\n(أجب بلهجة مصرية ودودة ومختصرة وقدم نصيحة مفيدة من واقع الأرقام)."
-                    
+                    full_prompt = f"أنت مستشار مالي مصري. بيانات المستخدم: {context_data}. سؤال المستخدم: {prompt}"
                     response = model.generate_content(full_prompt)
                     reply = response.text
-                    
                     st.write(reply)
                     st.session_state.chat_history.append({"role": "assistant", "content": reply})
                 except Exception as e:
-                    st.error("⚠️ لم أتمكن من الاتصال بعقلي! تأكد إنك ضفت GEMINI_API_KEY في إعدادات Streamlit و google-generativeai في ملف requirements.txt")
-
-    with tab_sec:
-        st.subheader("🛡️ سجل الزيارات")
-        try:
-            with get_connection() as cnn:
-                df_logs = pd.read_sql("SELECT * FROM access_logs ORDER BY id DESC LIMIT 50", cnn)
-            st.dataframe(df_logs.drop(columns=['id'], errors='ignore'), use_container_width=True)
-        except: pass
+                    st.error(f"⚠️ تفاصيل الخطأ التقني (انسخ هذا الكلام): {repr(e)}")
 
 with tab_inc:
     st.subheader("سجل الأرصدة المضافة")
