@@ -245,24 +245,13 @@ if st.session_state["role"] == "admin":
                     import google.generativeai as genai
                     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
                     
-                    # 🚀 السحر هنا: بحث تلقائي عن الموديل المتاح لحسابك
-                    target_model = None
-                    for m in genai.list_models():
-                        if 'generateContent' in m.supported_generation_methods:
-                            target_model = m.name
-                            if 'flash' in m.name.lower(): # نفضل الفلاش عشان أسرع
-                                break
-                    
-                    if target_model:
-                        model = genai.GenerativeModel(target_model)
-                        full_prompt = f"أنت مستشار مالي مصري. بيانات المستخدم: {context_data}. سؤال المستخدم: {prompt}"
-                        response = model.generate_content(full_prompt)
-                        reply = response.text
-                        st.write(reply)
-                        st.session_state.chat_history.append({"role": "assistant", "content": reply})
-                    else:
-                        st.error("لم أتمكن من العثور على أي نسخة ذكاء اصطناعي متاحة لمفتاحك.")
-                        
+                    # استخدام النسخة الجديدة المحدثة من جوجل مباشرة
+                    model = genai.GenerativeModel('gemini-3.8-flash')
+                    full_prompt = f"أنت مستشار مالي مصري. بيانات المستخدم: {context_data}. سؤال المستخدم: {prompt}"
+                    response = model.generate_content(full_prompt)
+                    reply = response.text
+                    st.write(reply)
+                    st.session_state.chat_history.append({"role": "assistant", "content": reply})
                 except Exception as e:
                     st.error(f"⚠️ تفاصيل الخطأ التقني: {repr(e)}")
 
