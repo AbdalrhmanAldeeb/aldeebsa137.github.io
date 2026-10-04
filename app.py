@@ -12,7 +12,7 @@ warnings.filterwarnings('ignore')
 st.set_page_config(page_title="النظام المالي المتكامل", page_icon="💎", layout="wide")
 
 # ==========================================
-#             نظام الأمان
+#             نظام الأمان والاتصال
 # ==========================================
 if "authenticated" not in st.session_state:
     st.session_state.update({"authenticated": False, "role": None})
@@ -23,34 +23,35 @@ def logout():
 def get_connection():
     return psycopg2.connect(st.secrets["DATABASE_URL"])
 
-# تأمين إنشاء الجداول (لو جدول فشل ميوقفش الباقي)
-try:
-    with get_connection() as setup_conn:
-        setup_conn.autocommit = True
-        with setup_conn.cursor() as c:
-            try: c.execute('''CREATE TABLE IF NOT EXISTS access_logs (id SERIAL PRIMARY KEY, timestamp TEXT, username TEXT, ip_address TEXT, device_info TEXT, location TEXT)''')
-            except: pass
-            
-            try: c.execute('''CREATE TABLE IF NOT EXISTS expenses (id SERIAL PRIMARY KEY, date TEXT, category TEXT, amount REAL, description TEXT, wallet TEXT DEFAULT 'نقدي')''')
-            except: pass
-            try: c.execute("ALTER TABLE expenses ADD COLUMN wallet TEXT DEFAULT 'نقدي'")
-            except: pass
-            
-            try: c.execute('''CREATE TABLE IF NOT EXISTS income (id SERIAL PRIMARY KEY, date TEXT, amount REAL, description TEXT, wallet TEXT DEFAULT 'نقدي')''')
-            except: pass
-            try: c.execute("ALTER TABLE income ADD COLUMN wallet TEXT DEFAULT 'نقدي'")
-            except: pass
-            
-            try: c.execute('''CREATE TABLE IF NOT EXISTS budgets (category TEXT UNIQUE, limit_amount REAL)''')
-            except: pass
-            
-            try: c.execute('''CREATE TABLE IF NOT EXISTS debts (id SERIAL PRIMARY KEY, date TEXT, person TEXT, amount REAL, type TEXT, description TEXT)''')
-            except: pass
-            
-            try: c.execute('''CREATE TABLE IF NOT EXISTS savings (id SERIAL PRIMARY KEY, goal_name TEXT, target REAL, saved REAL)''')
-            except: pass
-except:
-    pass
+# دالة التأسيس (قوية ومستقلة لكل جدول لتجنب أخطاء المعاملات)
+def init_db():
+    try:
+        conn = get_connection()
+        conn.autocommit = True
+        c = conn.cursor()
+        
+        # إنشاء الجداول الأساسية
+        c.execute('''CREATE TABLE IF NOT EXISTS access_logs (id SERIAL PRIMARY KEY, timestamp TEXT, username TEXT, ip_address TEXT, device_info TEXT, location TEXT)''')
+        c.execute('''CREATE TABLE IF NOT EXISTS expenses (id SERIAL PRIMARY KEY, date TEXT, category TEXT, amount REAL, description TEXT, wallet TEXT DEFAULT 'نقدي')''')
+        c.execute('''CREATE TABLE IF NOT EXISTS income (id SERIAL PRIMARY KEY, date TEXT, amount REAL, description TEXT, wallet TEXT DEFAULT 'نقدي')''')
+        c.execute('''CREATE TABLE IF NOT EXISTS budgets (category TEXT UNIQUE, limit_amount REAL)''')
+        c.execute('''CREATE TABLE IF NOT EXISTS debts (id SERIAL PRIMARY KEY, date TEXT, person TEXT, amount REAL, type TEXT, description TEXT)''')
+        c.execute('''CREATE TABLE IF NOT EXISTS savings (id SERIAL PRIMARY KEY, goal_name TEXT, target REAL, saved REAL)''')
+        
+        # التعديلات (كل واحدة في Try منفصلة عشان متوقفش البرنامج لو موجودة)
+        try: c.execute("ALTER TABLE expenses ADD COLUMN wallet TEXT DEFAULT 'نقدي'")
+        except: pass
+        
+        try: c.execute("ALTER TABLE income ADD COLUMN wallet TEXT DEFAULT 'نقدي'")
+        except: pass
+        
+        c.close()
+        conn.close()
+    except Exception as e:
+        pass
+
+# تشغيل التأسيس في بداية البرنامج
+init_db()
 
 if not st.session_state["authenticated"]:
     st.title("🔒 نظام الدخول الآمن")
@@ -95,7 +96,6 @@ st.sidebar.markdown("---")
 wallets = ["نقدي", "فيزا", "فودافون كاش"]
 default_categories = ["طعام ومشروبات", "مواصلات", "فواتير واشتراكات", "استثمارات", "كورسات وتعليم", "ترفيه", "أخرى"]
 
-# دالة آمنة لجلب البيانات (عشان لو جدول مش موجود البرنامج ميقفلش)
 def safe_read_sql(query, conn):
     try:
         return pd.read_sql(query, conn)
@@ -113,7 +113,7 @@ try:
         db_categories = df_exp['category'].unique().tolist() if not df_exp.empty and 'category' in df_exp.columns else []
         all_categories = sorted(list(set(default_categories + db_categories))) + ["➕ إضافة بند جديد..."]
 except Exception as e:
-    st.error(f"خطأ رئيسي في الاتصال بقاعدة البيانات: {e}")
+    st.error("خطأ في الاتصال بقاعدة البيانات.")
     st.stop()
 
 st.title("💎 النظام المالي المتكامل")
@@ -255,7 +255,6 @@ with tab_exp:
     if not df_exp_view.empty:
         cat_group = df_exp_view.groupby('category')['amount'].sum().reset_index()
         
-        # نظام التحذير والميزانية
         if not df_budgets.empty and 'category' in df_budgets.columns:
             st.subheader("🎯 موقفك من الميزانية المحددة")
             for _, b_row in df_budgets.iterrows():
