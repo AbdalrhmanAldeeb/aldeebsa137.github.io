@@ -23,25 +23,33 @@ def logout():
 def get_connection():
     return psycopg2.connect(st.secrets["DATABASE_URL"])
 
-# إنشاء جداول قاعدة البيانات (شاملة الإضافات الجديدة)
+# تأمين إنشاء الجداول (لو جدول فشل ميوقفش الباقي)
 try:
     with get_connection() as setup_conn:
         setup_conn.autocommit = True
         with setup_conn.cursor() as c:
-            c.execute('''CREATE TABLE IF NOT EXISTS access_logs (id SERIAL PRIMARY KEY, timestamp TEXT, username TEXT, ip_address TEXT, device_info TEXT, location TEXT)''')
+            try: c.execute('''CREATE TABLE IF NOT EXISTS access_logs (id SERIAL PRIMARY KEY, timestamp TEXT, username TEXT, ip_address TEXT, device_info TEXT, location TEXT)''')
+            except: pass
             
-            c.execute('''CREATE TABLE IF NOT EXISTS expenses (id SERIAL PRIMARY KEY, date TEXT, category TEXT, amount REAL, description TEXT, wallet TEXT DEFAULT 'نقدي')''')
+            try: c.execute('''CREATE TABLE IF NOT EXISTS expenses (id SERIAL PRIMARY KEY, date TEXT, category TEXT, amount REAL, description TEXT, wallet TEXT DEFAULT 'نقدي')''')
+            except: pass
             try: c.execute("ALTER TABLE expenses ADD COLUMN wallet TEXT DEFAULT 'نقدي'")
             except: pass
             
-            c.execute('''CREATE TABLE IF NOT EXISTS income (id SERIAL PRIMARY KEY, date TEXT, amount REAL, description TEXT, wallet TEXT DEFAULT 'نقدي')''')
+            try: c.execute('''CREATE TABLE IF NOT EXISTS income (id SERIAL PRIMARY KEY, date TEXT, amount REAL, description TEXT, wallet TEXT DEFAULT 'نقدي')''')
+            except: pass
             try: c.execute("ALTER TABLE income ADD COLUMN wallet TEXT DEFAULT 'نقدي'")
             except: pass
             
-            c.execute('''CREATE TABLE IF NOT EXISTS budgets (category TEXT UNIQUE, limit_amount REAL)''')
-            c.execute('''CREATE TABLE IF NOT EXISTS debts (id SERIAL PRIMARY KEY, date TEXT, person TEXT, amount REAL, type TEXT, description TEXT)''')
-            c.execute('''CREATE TABLE IF NOT EXISTS savings (id SERIAL PRIMARY KEY, goal_name TEXT, target REAL, saved REAL)''')
-except Exception as e:
+            try: c.execute('''CREATE TABLE IF NOT EXISTS budgets (category TEXT UNIQUE, limit_amount REAL)''')
+            except: pass
+            
+            try: c.execute('''CREATE TABLE IF NOT EXISTS debts (id SERIAL PRIMARY KEY, date TEXT, person TEXT, amount REAL, type TEXT, description TEXT)''')
+            except: pass
+            
+            try: c.execute('''CREATE TABLE IF NOT EXISTS savings (id SERIAL PRIMARY KEY, goal_name TEXT, target REAL, saved REAL)''')
+            except: pass
+except:
     pass
 
 if not st.session_state["authenticated"]:
@@ -87,18 +95,25 @@ st.sidebar.markdown("---")
 wallets = ["نقدي", "فيزا", "فودافون كاش"]
 default_categories = ["طعام ومشروبات", "مواصلات", "فواتير واشتراكات", "استثمارات", "كورسات وتعليم", "ترفيه", "أخرى"]
 
+# دالة آمنة لجلب البيانات (عشان لو جدول مش موجود البرنامج ميقفلش)
+def safe_read_sql(query, conn):
+    try:
+        return pd.read_sql(query, conn)
+    except:
+        return pd.DataFrame()
+
 try:
     with get_connection() as read_conn:
-        df_exp = pd.read_sql("SELECT * FROM expenses ORDER BY date DESC, id DESC", read_conn)
-        df_inc = pd.read_sql("SELECT * FROM income ORDER BY date DESC, id DESC", read_conn)
-        df_budgets = pd.read_sql("SELECT * FROM budgets", read_conn)
-        df_debts = pd.read_sql("SELECT * FROM debts ORDER BY date DESC", read_conn)
-        df_savings = pd.read_sql("SELECT * FROM savings", read_conn)
+        df_exp = safe_read_sql("SELECT * FROM expenses ORDER BY date DESC, id DESC", read_conn)
+        df_inc = safe_read_sql("SELECT * FROM income ORDER BY date DESC, id DESC", read_conn)
+        df_budgets = safe_read_sql("SELECT * FROM budgets", read_conn)
+        df_debts = safe_read_sql("SELECT * FROM debts ORDER BY date DESC", read_conn)
+        df_savings = safe_read_sql("SELECT * FROM savings", read_conn)
         
-        db_categories = df_exp['category'].unique().tolist() if not df_exp.empty else []
+        db_categories = df_exp['category'].unique().tolist() if not df_exp.empty and 'category' in df_exp.columns else []
         all_categories = sorted(list(set(default_categories + db_categories))) + ["➕ إضافة بند جديد..."]
 except Exception as e:
-    st.error("خطأ في جلب البيانات.")
+    st.error(f"خطأ رئيسي في الاتصال بقاعدة البيانات: {e}")
     st.stop()
 
 st.title("💎 النظام المالي المتكامل")
@@ -147,7 +162,7 @@ if st.session_state["role"] == "admin":
 
     elif operation == "🎯 تحديد ميزانية":
         st.sidebar.write("حدد حد أقصى للصرف في بند معين بالشهر:")
-        budg_cat = st.sidebar.selectbox("اختر البند", all_categories[:-1])
+        budg_cat = st.sidebar.selectbox("اختر البند", [c for c in all_categories if c != "➕ إضافة بند جديد..."])
         budg_limit = st.sidebar.number_input("الحد الأقصى (ج.م)", min_value=0.0, format="%.2f")
         if st.sidebar.button("حفظ الميزانية ✅", use_container_width=True):
             with get_connection() as conn:
@@ -189,8 +204,8 @@ else:
 #        المحفظة العامة (لا تتأثر بالفلتر)
 # ==========================================
 def get_balance(wallet_name):
-    inc = df_inc[df_inc['wallet'] == wallet_name]['amount'].sum() if not df_inc.empty else 0
-    exp = df_exp[df_exp['wallet'] == wallet_name]['amount'].sum() if not df_exp.empty else 0
+    inc = df_inc[df_inc['wallet'] == wallet_name]['amount'].sum() if not df_inc.empty and 'wallet' in df_inc.columns else 0
+    exp = df_exp[df_exp['wallet'] == wallet_name]['amount'].sum() if not df_exp.empty and 'wallet' in df_exp.columns else 0
     return inc - exp
 
 c1, c2, c3, c4 = st.columns(4)
@@ -203,7 +218,7 @@ st.markdown("---")
 # ==========================================
 #        فلتر الشهور (يؤثر على الإحصائيات)
 # ==========================================
-if not df_exp.empty:
+if not df_exp.empty and 'date' in df_exp.columns:
     df_exp['month_year'] = pd.to_datetime(df_exp['date']).dt.strftime('%Y-%m')
     months_list = ["كل الشهور"] + sorted(df_exp['month_year'].unique().tolist(), reverse=True)
 else:
@@ -213,12 +228,12 @@ selected_month = st.selectbox("📅 فلترة البيانات حسب الشه�
 
 df_exp_view = df_exp if selected_month == "كل الشهور" or df_exp.empty else df_exp[df_exp['month_year'] == selected_month]
 df_inc_view = df_inc.copy()
-if not df_inc.empty and selected_month != "كل الشهور":
+if not df_inc.empty and selected_month != "كل الشهور" and 'date' in df_inc.columns:
     df_inc_view['month_year'] = pd.to_datetime(df_inc['date']).dt.strftime('%Y-%m')
     df_inc_view = df_inc_view[df_inc_view['month_year'] == selected_month]
 
-total_exp_view = df_exp_view['amount'].sum() if not df_exp_view.empty else 0
-unique_days = df_exp_view['date'].nunique() if not df_exp_view.empty else 0
+total_exp_view = df_exp_view['amount'].sum() if not df_exp_view.empty and 'amount' in df_exp_view.columns else 0
+unique_days = df_exp_view['date'].nunique() if not df_exp_view.empty and 'date' in df_exp_view.columns else 0
 avg_per_day = total_exp_view / unique_days if unique_days > 0 else 0
 
 # ==========================================
@@ -241,7 +256,7 @@ with tab_exp:
         cat_group = df_exp_view.groupby('category')['amount'].sum().reset_index()
         
         # نظام التحذير والميزانية
-        if not df_budgets.empty:
+        if not df_budgets.empty and 'category' in df_budgets.columns:
             st.subheader("🎯 موقفك من الميزانية المحددة")
             for _, b_row in df_budgets.iterrows():
                 b_cat = b_row['category']
@@ -249,7 +264,6 @@ with tab_exp:
                 spent = cat_group[cat_group['category'] == b_cat]['amount'].sum() if b_cat in cat_group['category'].values else 0
                 progress = min(spent / b_limit, 1.0) if b_limit > 0 else 0
                 
-                color = "green" if progress < 0.75 else "orange" if progress < 1 else "red"
                 st.write(f"**{b_cat}**: صرفت {spent:.2f} من أصل {b_limit:.2f}")
                 st.progress(progress)
                 if progress == 1.0: st.error(f"⚠️ لقد تجاوزت ميزانية {b_cat}!")
@@ -264,13 +278,13 @@ with tab_plan:
     col_d, col_s = st.columns(2)
     with col_d:
         st.subheader("🤝 سجل السُلف والديون")
-        if not df_debts.empty:
+        if not df_debts.empty and 'type' in df_debts.columns:
             ليا = df_debts[df_debts['type'] == 'ليا (سلّفت حد)']['amount'].sum()
             عليا = df_debts[df_debts['type'] == 'عليا (استلفت)']['amount'].sum()
             st.info(f"🟢 ليك بره: {ليا:.2f} ج.م  |  🔴 عليك: {عليا:.2f} ج.م")
-            st.dataframe(df_debts.drop(columns=['id']), use_container_width=True)
+            st.dataframe(df_debts.drop(columns=['id'], errors='ignore'), use_container_width=True)
             
-            if st.session_state["role"] == "admin":
+            if st.session_state["role"] == "admin" and 'id' in df_debts.columns:
                 d_del = st.selectbox("حذف دين (بعد سداده):", df_debts['id'].tolist(), format_func=lambda x: f"{df_debts[df_debts['id']==x]['person'].iloc[0]} - {df_debts[df_debts['id']==x]['amount'].iloc[0]} ج.م")
                 if st.button("تأكيد السداد/الحذف 🗑️", key="del_debt"):
                     with get_connection() as cnn:
@@ -282,13 +296,13 @@ with tab_plan:
             
     with col_s:
         st.subheader("🐷 أهداف التوفير")
-        if not df_savings.empty:
+        if not df_savings.empty and 'target' in df_savings.columns:
             for _, s_row in df_savings.iterrows():
                 prog = min(s_row['saved'] / s_row['target'], 1.0) if s_row['target'] > 0 else 0
                 st.write(f"🎯 **{s_row['goal_name']}**: تم توفير {s_row['saved']} من {s_row['target']}")
                 st.progress(prog)
             
-            if st.session_state["role"] == "admin":
+            if st.session_state["role"] == "admin" and 'id' in df_savings.columns:
                 st.markdown("---")
                 s_upd_id = st.selectbox("تحديث رصيد هدف:", df_savings['id'].tolist(), format_func=lambda x: df_savings[df_savings['id']==x]['goal_name'].iloc[0])
                 s_add = st.number_input("إضافة مبلغ للهدف", min_value=0.0)
@@ -312,7 +326,7 @@ if st.session_state["role"] == "admin":
             cat_totals = df_exp_view.groupby('category')['amount'].sum().sort_values(ascending=False)
             top_cat = cat_totals.index[0]
             top_amt = cat_totals.iloc[0]
-            pct = (top_amt / total_exp_view) * 100
+            pct = (top_amt / total_exp_view) * 100 if total_exp_view > 0 else 0
             
             st.info(f"💡 **أكبر ثقب أسود لفلوسك:** بند '{top_cat}' أخد لوحده {top_amt:.2f} ج.م (بيمثل {pct:.1f}% من مصاريفك!).")
             
@@ -340,5 +354,6 @@ if st.session_state["role"] == "admin":
         try:
             with get_connection() as cnn:
                 df_logs = pd.read_sql("SELECT * FROM access_logs ORDER BY id DESC LIMIT 50", cnn)
-            if not df_logs.empty: st.dataframe(df_logs.drop(columns=['id']), use_container_width=True)
+            if not df_logs.empty: st.dataframe(df_logs.drop(columns=['id'], errors='ignore'), use_container_width=True)
+            else: st.info("لا توجد زيارات مسجلة.")
         except: pass
