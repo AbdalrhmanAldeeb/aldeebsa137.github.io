@@ -121,6 +121,22 @@ except Exception as e:
 st.title("💰 متتبع المصاريف الشخصية")
 
 # ==========================================
+#      جلب البنود (الأساسية + المضافة من المستخدم)
+# ==========================================
+default_categories = ["طعام ومشروبات", "مواصلات", "فواتير واشتراكات", "استثمارات", "كورسات وتعليم", "ترفيه", "أخرى"]
+try:
+    with get_connection() as cat_conn:
+        df_cats = pd.read_sql("SELECT DISTINCT category FROM expenses", cat_conn)
+        db_categories = df_cats['category'].tolist()
+except:
+    db_categories = []
+
+# دمج البنود الأساسية مع بنودك الجديدة بدون تكرار
+all_categories = list(set(default_categories + db_categories))
+all_categories.sort()
+all_categories.append("➕ إضافة بند جديد...")
+
+# ==========================================
 #        القائمة الجانبية (للأدمن فقط)
 # ==========================================
 st.sidebar.title("إدارة الأموال 💼")
@@ -129,24 +145,30 @@ if st.session_state["role"] == "admin":
     tab_sidebar_exp, tab_sidebar_inc = st.sidebar.tabs(["إضافة مصروف 💸", "إضافة رصيد 💵"])
 
     with tab_sidebar_exp:
-        categories = ["طعام ومشروبات", "مواصلات", "فواتير واشتراكات", "استثمارات", "كورسات وتعليم", "ترفيه", "أخرى"]
         date_input = st.date_input("التاريخ", datetime.today(), key="exp_date")
-        category_input = st.selectbox("القسم (البند)", categories, key="exp_cat")
+        
+        # اختيار القسم المطور
+        selected_cat = st.selectbox("القسم (البند)", all_categories, key="exp_cat_select")
+        if selected_cat == "➕ إضافة بند جديد...":
+            category_input = st.text_input("اكتب اسم البند الجديد", key="custom_exp_cat")
+        else:
+            category_input = selected_cat
+
         wallet_out = st.selectbox("طريقة الدفع (خصم من)", wallets, key="exp_wal")
         amount_input = st.number_input("المبلغ", min_value=0.0, format="%.2f", key="exp_amt")
         desc_input = st.text_input("الوصف (اختياري)", key="exp_desc")
 
         if st.button("إضافة المصروف"):
-            if amount_input > 0:
+            if amount_input > 0 and category_input.strip() != "":
                 with get_connection() as write_conn:
                     write_conn.autocommit = True
                     with write_conn.cursor() as write_c:
                         write_c.execute("INSERT INTO expenses (date, category, amount, description, wallet) VALUES (%s, %s, %s, %s, %s)", 
-                                  (date_input.strftime("%Y-%m-%d"), category_input, amount_input, desc_input, wallet_out))
+                                  (date_input.strftime("%Y-%m-%d"), category_input.strip(), amount_input, desc_input, wallet_out))
                 st.success("تمت الإضافة بنجاح! 💸")
                 st.rerun()
             else:
-                st.error("يرجى إدخال مبلغ أكبر من الصفر.")
+                st.error("يرجى إدخال مبلغ صحيح واسم للبند.")
 
     with tab_sidebar_inc:
         inc_date = st.date_input("التاريخ", datetime.today(), key="inc_date")
@@ -269,7 +291,6 @@ with tab_main_exp:
         
         if st.session_state["role"] == "admin":
             st.subheader("⚙️ تعديل أو حذف مصروف")
-            categories = ["طعام ومشروبات", "مواصلات", "فواتير واشتراكات", "استثمارات", "كورسات وتعليم", "ترفيه", "أخرى"]
             df_exp['display_text'] = df_exp['date'].astype(str) + " | " + df_exp['category'] + " | " + df_exp['amount'].astype(str) + " ج.م | " + df_exp['wallet']
             exp_options = dict(zip(df_exp['id'], df_exp['display_text']))
             
@@ -283,8 +304,19 @@ with tab_main_exp:
                     with st.expander("✏️ تعديل"):
                         with st.form("edit_exp_form"):
                             new_date = st.date_input("التاريخ", pd.to_datetime(row_data['date']).date())
-                            cat_index = categories.index(row_data['category']) if row_data['category'] in categories else 0
-                            new_category = st.selectbox("القسم", categories, index=cat_index)
+                            
+                            # قائمة الأقسام للتعديل
+                            edit_cat_options = [c for c in all_categories if c != "➕ إضافة بند جديد..."]
+                            if row_data['category'] not in edit_cat_options:
+                                edit_cat_options.append(row_data['category'])
+                                
+                            cat_index = edit_cat_options.index(row_data['category'])
+                            new_cat_sel = st.selectbox("القسم", edit_cat_options + ["➕ إضافة بند جديد..."], index=cat_index)
+                            if new_cat_sel == "➕ إضافة بند جديد...":
+                                new_category = st.text_input("اسم البند الجديد", key="edit_custom_cat")
+                            else:
+                                new_category = new_cat_sel
+
                             wal_index = wallets.index(row_data['wallet']) if row_data['wallet'] in wallets else 0
                             new_wallet = st.selectbox("دُفع من", wallets, index=wal_index)
                             new_amount = st.number_input("المبلغ", min_value=0.0, value=float(row_data['amount']), format="%.2f")
@@ -292,16 +324,19 @@ with tab_main_exp:
                             new_desc = st.text_input("الوصف", value=str(current_desc))
                             
                             if st.form_submit_button("حفظ التعديل"):
-                                with get_connection() as update_conn:
-                                    update_conn.autocommit = True
-                                    with update_conn.cursor() as update_c:
-                                        update_c.execute("UPDATE expenses SET date=%s, category=%s, amount=%s, description=%s, wallet=%s WHERE id=%s",
-                                                  (new_date.strftime("%Y-%m-%d"), new_category, new_amount, new_desc, new_wallet, selected_exp_id))
-                                st.success("تم التعديل!")
-                                st.rerun()
+                                if new_category.strip() != "":
+                                    with get_connection() as update_conn:
+                                        update_conn.autocommit = True
+                                        with update_conn.cursor() as update_c:
+                                            update_c.execute("UPDATE expenses SET date=%s, category=%s, amount=%s, description=%s, wallet=%s WHERE id=%s",
+                                                      (new_date.strftime("%Y-%m-%d"), new_category.strip(), new_amount, new_desc, new_wallet, selected_exp_id))
+                                    st.success("تم التعديل!")
+                                    st.rerun()
+                                else:
+                                    st.error("اسم البند لا يمكن أن يكون فارغاً.")
                 
                 with col_e2:
-                    with st.expander("🗑️️ حذف"):
+                    with st.expander("🗑 حذف"):
                         st.warning("تحذير: لا يمكن التراجع!")
                         if st.button("نعم، تأكيد الحذف", key="del_exp_btn"):
                             with get_connection() as del_conn:
@@ -359,7 +394,7 @@ with tab_main_inc:
                                 st.rerun()
                 
                 with col_e2:
-                    with st.expander("🗑️️ حذف"):
+                    with st.expander("🗑 حذف"):
                         st.warning("تحذير: لا يمكن التراجع!")
                         if st.button("نعم، تأكيد الحذف", key="del_inc_btn"):
                             with get_connection() as del_inc_conn:
@@ -383,7 +418,7 @@ with tab_main_inc:
 # ==========================================
 if st.session_state["role"] == "admin":
     with tab_main_logs:
-        st.subheader("🕵️️‍♂️ سجل زيارات النظام")
+        st.subheader("🕵‍♂️️ سجل زيارات النظام")
         st.write("هنا يتم تسجيل كل عملية دخول للنظام، سواء كانت بصلاحيات أدمن أو ضيف.")
         try:
             with get_connection() as log_read_conn:
