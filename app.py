@@ -201,7 +201,7 @@ total_exp_view = df_exp_view['amount'].sum() if not df_exp_view.empty and 'amoun
 #                التابات
 # ==========================================
 if st.session_state["role"] == "admin":
-    tabs = st.tabs(["📊 المصاريف والميزانية", "🤝 الديون والتوفير", "🤖 المستشار الذكي", "💵 الأرصدة"])
+    tabs = st.tabs(["📊 المصاريف والميزانية", "🤝 الديون والتوفير", "🤖 المستشار الذكي (Gemini)", "💵 الأرصدة"])
     tab_exp, tab_plan, tab_ai, tab_inc = tabs
 else:
     tabs = st.tabs(["📊 المصاريف", "💵 الأرصدة"])
@@ -221,32 +221,7 @@ if st.session_state["role"] == "admin":
         st.dataframe(df_savings.drop(columns=['id'], errors='ignore'), use_container_width=True)
 
     with tab_ai:
-        st.subheader("🤖 أنا المستشار الخوارزمي (عقلي من Gemini)")
-        
-        # ⚠️️ الزرار السحري للفحص ⚠️
-        if st.button("🛠️ فحص نظام الذكاء الاصطناعي (اضغط هنا لمعرفة العطل)"):
-            st.write("بدأ الفحص...")
-            try:
-                import google.generativeai as genai
-                st.success("✅ خطوة 1: مكتبة الذكاء الاصطناعي موجودة وشغالة.")
-                
-                try:
-                    api_key = st.secrets["GEMINI_API_KEY"]
-                    st.success(f"✅ خطوة 2: المفتاح موجود في الخزنة وبيبدأ بـ: {api_key[:5]}...")
-                    
-                    try:
-                        genai.configure(api_key=api_key)
-                        model = genai.GenerativeModel('gemini-1.5-flash')
-                        response = model.generate_content("قول 'مرحبا' بس")
-                        st.success(f"✅ خطوة 3: الاتصال بجوجل نجح! رد الذكاء الاصطناعي: {response.text}")
-                    except Exception as e_api:
-                        st.error(f"❌ العطل في خطوة 3 (مشكلة في الاتصال أو المفتاح مرفوض). التفاصيل التقنية: {repr(e_api)}")
-                except Exception as e_key:
-                    st.error(f"❌ العطل في خطوة 2 (مشكلة في قراءة المفتاح من الخزنة). التفاصيل: {repr(e_key)}")
-            except Exception as e_lib:
-                st.error(f"❌ العطل في خطوة 1 (مكتبة الذكاء الاصطناعي متسطبتش صح). التفاصيل: {repr(e_lib)}")
-
-        st.markdown("---")
+        st.subheader("🤖 أنا المستشار الخوارزمي (عقلي من Gemini) - اسألني عن مصاريفك!")
         
         cat_totals_dict = df_exp_view.groupby('category')['amount'].sum().to_dict() if not df_exp_view.empty else {}
         context_data = f"الرصيد: {total_bal_all} جنيه. المصاريف: {total_exp_view} جنيه. تفاصيل: {cat_totals_dict}"
@@ -269,7 +244,8 @@ if st.session_state["role"] == "admin":
                 try:
                     import google.generativeai as genai
                     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-                    model = genai.GenerativeModel('gemini-1.5-flash')
+                    # قمنا بتغيير اسم الموديل لـ gemini-pro لضمان عمله على كل المفاتيح
+                    model = genai.GenerativeModel('gemini-pro')
                     full_prompt = f"أنت مستشار مالي مصري. بيانات المستخدم: {context_data}. سؤال المستخدم: {prompt}"
                     response = model.generate_content(full_prompt)
                     reply = response.text
