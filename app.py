@@ -58,7 +58,6 @@ if not st.session_state["authenticated"]:
                     user_agent = "غير متوفر"
                     location = "غير متوفر"
                     
-                    # محاولة جلب بيانات الزائر
                     try:
                         headers = st.context.headers
                         ip = headers.get("X-Forwarded-For", "غير متوفر").split(",")[0].strip()
@@ -66,7 +65,6 @@ if not st.session_state["authenticated"]:
                     except:
                         pass
                     
-                    # محاولة جلب الموقع الجغرافي
                     if ip != "غير متوفر":
                         try:
                             url = f"http://ip-api.com/json/{ip}"
@@ -78,14 +76,13 @@ if not st.session_state["authenticated"]:
                         except:
                             pass
                             
-                    # حفظ الزيارة (تتنفذ دائماً)
                     with get_connection() as log_conn:
                         log_conn.autocommit = True
                         with log_conn.cursor() as log_c:
                             log_c.execute("INSERT INTO access_logs (timestamp, username, ip_address, device_info, location) VALUES (%s, %s, %s, %s, %s)",
                                           (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), username, ip, user_agent, location))
                 except Exception as e:
-                    pass # تجاهل الأخطاء لعدم تعطيل الدخول
+                    pass 
 
                 st.rerun()
             else:
@@ -199,10 +196,7 @@ cash_balance = get_balance("نقدي")
 visa_balance = get_balance("فيزا")
 vf_balance = get_balance("فودافون كاش")
 total_balance = cash_balance + visa_balance + vf_balance
-
 total_expenses = df_exp['amount'].sum() if not df_exp.empty else 0
-unique_days_all = df_exp['date'].nunique() if not df_exp.empty else 0
-avg_per_day_all = total_expenses / unique_days_all if unique_days_all > 0 else 0
 
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("💰 الإجمالي الكلي", f"{total_balance:.2f} ج.م", delta="- رصيد كلي سالب" if total_balance < 0 else None, delta_color="inverse")
@@ -211,9 +205,30 @@ c3.metric("💳 رصيد فيزا", f"{visa_balance:.2f} ج.م")
 c4.metric("📱 فودافون كاش", f"{vf_balance:.2f} ج.م")
 
 st.markdown("---")
+
+# ==========================================
+#    فلتر ذكي لحساب متوسط الصرف المتغير
+# ==========================================
+st.markdown("### 🎯 إعدادات حساب متوسط الصرف (استبعاد الثوابت)")
+all_recorded_categories = df_exp['category'].unique().tolist() if not df_exp.empty else []
+
+selected_cats_for_avg = st.multiselect(
+    "اختر البنود التي تريد حساب (متوسط الصرف اليومي) لها - احذف البنود الثابتة كالمواصلات لتعرف معدل حرقك الحقيقي:",
+    options=all_recorded_categories,
+    default=all_recorded_categories
+)
+
+if not df_exp.empty and selected_cats_for_avg:
+    filtered_exp = df_exp[df_exp['category'].isin(selected_cats_for_avg)]
+    filtered_days = filtered_exp['date'].nunique()
+    custom_avg_per_day = filtered_exp['amount'].sum() / filtered_days if filtered_days > 0 else 0
+else:
+    custom_avg_per_day = 0
+
 c_exp1, c_exp2 = st.columns(2)
-c_exp1.metric("💸 إجمالي المصاريف", f"{total_expenses:.2f} ج.م")
-c_exp2.metric("📊 متوسط الصرف العام", f"{avg_per_day_all:.2f} ج.م/يوم")
+c_exp1.metric("💸 إجمالي المصاريف الكلية", f"{total_expenses:.2f} ج.م")
+c_exp2.metric("📊 متوسط الصرف للبنود المختارة", f"{custom_avg_per_day:.2f} ج.م/يوم", delta="صافي متغير", delta_color="off")
+
 st.markdown("---")
 
 # ==========================================
@@ -252,7 +267,6 @@ with tab_main_exp:
         
         st.markdown("---")
         
-        # إظهار التعديل والحذف للأدمن فقط
         if st.session_state["role"] == "admin":
             st.subheader("⚙️ تعديل أو حذف مصروف")
             categories = ["طعام ومشروبات", "مواصلات", "فواتير واشتراكات", "استثمارات", "كورسات وتعليم", "ترفيه", "أخرى"]
@@ -287,7 +301,7 @@ with tab_main_exp:
                                 st.rerun()
                 
                 with col_e2:
-                    with st.expander("🗑️ حذف"):
+                    with st.expander("🗑️️ حذف"):
                         st.warning("تحذير: لا يمكن التراجع!")
                         if st.button("نعم، تأكيد الحذف", key="del_exp_btn"):
                             with get_connection() as del_conn:
@@ -345,7 +359,7 @@ with tab_main_inc:
                                 st.rerun()
                 
                 with col_e2:
-                    with st.expander("🗑️ حذف"):
+                    with st.expander("🗑️️ حذف"):
                         st.warning("تحذير: لا يمكن التراجع!")
                         if st.button("نعم، تأكيد الحذف", key="del_inc_btn"):
                             with get_connection() as del_inc_conn:
@@ -369,7 +383,7 @@ with tab_main_inc:
 # ==========================================
 if st.session_state["role"] == "admin":
     with tab_main_logs:
-        st.subheader("🕵️‍♂️ سجل زيارات النظام")
+        st.subheader("🕵️️‍♂️ سجل زيارات النظام")
         st.write("هنا يتم تسجيل كل عملية دخول للنظام، سواء كانت بصلاحيات أدمن أو ضيف.")
         try:
             with get_connection() as log_read_conn:
