@@ -7,7 +7,7 @@ import warnings
 
 warnings.filterwarnings('ignore')
 
-st.set_page_config(page_title="متتبع المصاريف", page_icon="💰", layout="centered")
+st.set_page_config(page_title="متتبع المصاريف", page_icon="💰", layout="wide")
 
 # ==========================================
 #             نظام تسجيل الدخول
@@ -44,20 +44,26 @@ st.sidebar.markdown("---")
 def get_connection():
     return psycopg2.connect(st.secrets["DATABASE_URL"])
 
+# تجهيز قائمة المحافظ
+wallets = ["نقدي", "فيزا", "فودافون كاش"]
+
 try:
     conn = get_connection()
     conn.autocommit = True
     c = conn.cursor()
 
+    # تحديث جداول قاعدة البيانات لإضافة عمود "المحفظة"
     c.execute('''CREATE TABLE IF NOT EXISTS expenses
                  (date TEXT, category TEXT, amount REAL, description TEXT)''')
-    try:
-        c.execute("ALTER TABLE expenses ADD COLUMN id SERIAL PRIMARY KEY")
-    except Exception:
-        pass 
+    try: c.execute("ALTER TABLE expenses ADD COLUMN id SERIAL PRIMARY KEY")
+    except Exception: pass 
+    try: c.execute("ALTER TABLE expenses ADD COLUMN wallet TEXT DEFAULT 'نقدي'")
+    except Exception: pass 
 
     c.execute('''CREATE TABLE IF NOT EXISTS income
                  (id SERIAL PRIMARY KEY, date TEXT, amount REAL, description TEXT)''')
+    try: c.execute("ALTER TABLE income ADD COLUMN wallet TEXT DEFAULT 'نقدي'")
+    except Exception: pass 
 
 except Exception as e:
     st.error(f"خطأ في الاتصال بقاعدة البيانات: {e}")
@@ -72,6 +78,7 @@ with tab_sidebar_exp:
     categories = ["طعام ومشروبات", "مواصلات", "فواتير واشتراكات", "استثمارات", "كورسات وتعليم", "ترفيه", "أخرى"]
     date_input = st.date_input("التاريخ", datetime.today(), key="exp_date")
     category_input = st.selectbox("القسم (البند)", categories, key="exp_cat")
+    wallet_out = st.selectbox("طريقة الدفع (خصم من)", wallets, key="exp_wal")
     amount_input = st.number_input("المبلغ", min_value=0.0, format="%.2f", key="exp_amt")
     desc_input = st.text_input("الوصف (اختياري)", key="exp_desc")
 
@@ -80,8 +87,8 @@ with tab_sidebar_exp:
             with get_connection() as write_conn:
                 write_conn.autocommit = True
                 with write_conn.cursor() as write_c:
-                    write_c.execute("INSERT INTO expenses (date, category, amount, description) VALUES (%s, %s, %s, %s)", 
-                              (date_input.strftime("%Y-%m-%d"), category_input, amount_input, desc_input))
+                    write_c.execute("INSERT INTO expenses (date, category, amount, description, wallet) VALUES (%s, %s, %s, %s, %s)", 
+                              (date_input.strftime("%Y-%m-%d"), category_input, amount_input, desc_input, wallet_out))
             st.success("تمت الإضافة بنجاح! 💸")
             st.rerun()
         else:
@@ -89,6 +96,7 @@ with tab_sidebar_exp:
 
 with tab_sidebar_inc:
     inc_date = st.date_input("التاريخ", datetime.today(), key="inc_date")
+    wallet_in = st.selectbox("إضافة الرصيد إلى", wallets, key="inc_wal")
     inc_amount = st.number_input("المبلغ المراد إضافته", min_value=0.0, format="%.2f", key="inc_amt")
     inc_desc = st.text_input("مصدر الرصيد (اختياري)", key="inc_desc")
     
@@ -97,8 +105,8 @@ with tab_sidebar_inc:
             with get_connection() as write_conn:
                 write_conn.autocommit = True
                 with write_conn.cursor() as write_c:
-                    write_c.execute("INSERT INTO income (date, amount, description) VALUES (%s, %s, %s)", 
-                              (inc_date.strftime("%Y-%m-%d"), inc_amount, inc_desc))
+                    write_c.execute("INSERT INTO income (date, amount, description, wallet) VALUES (%s, %s, %s, %s)", 
+                              (inc_date.strftime("%Y-%m-%d"), inc_amount, inc_desc, wallet_in))
             st.success("تمت إضافة الرصيد بنجاح! 💵")
             st.rerun()
         else:
@@ -108,24 +116,48 @@ try:
     with get_connection() as read_conn:
         df_exp = pd.read_sql("SELECT * FROM expenses ORDER BY date DESC, id DESC", read_conn)
         df_inc = pd.read_sql("SELECT * FROM income ORDER BY date DESC, id DESC", read_conn)
+        
+        # معالجة البيانات القديمة التي ليس لها محفظة
+        if not df_exp.empty and 'wallet' not in df_exp.columns: df_exp['wallet'] = 'نقدي'
+        elif not df_exp.empty: df_exp['wallet'] = df_exp['wallet'].fillna('نقدي')
+        
+        if not df_inc.empty and 'wallet' not in df_inc.columns: df_inc['wallet'] = 'نقدي'
+        elif not df_inc.empty: df_inc['wallet'] = df_inc['wallet'].fillna('نقدي')
+
 except Exception as e:
     st.error(f"خطأ أثناء جلب البيانات: {e}")
     df_exp = pd.DataFrame()
     df_inc = pd.DataFrame()
 
+# ==========================================
+#            حساب الأرصدة لكل محفظة
+# ==========================================
+def get_balance(wallet_name):
+    inc = df_inc[df_inc['wallet'] == wallet_name]['amount'].sum() if not df_inc.empty else 0
+    exp = df_exp[df_exp['wallet'] == wallet_name]['amount'].sum() if not df_exp.empty else 0
+    return inc - exp
+
+cash_balance = get_balance("نقدي")
+visa_balance = get_balance("فيزا")
+vf_balance = get_balance("فودافون كاش")
+total_balance = cash_balance + visa_balance + vf_balance
+
 total_expenses = df_exp['amount'].sum() if not df_exp.empty else 0
-total_income = df_inc['amount'].sum() if not df_inc.empty else 0
-current_balance = total_income - total_expenses
-
-col1, col2, col3 = st.columns(3)
-balance_delta = "- رصيد بالسالب" if current_balance < 0 else None
-col1.metric("الرصيد المتاح 💵", f"{current_balance:.2f} ج.م", delta=balance_delta, delta_color="inverse")
-col2.metric("إجمالي المصاريف 💸", f"{total_expenses:.2f} ج.م")
-
 unique_days_all = df_exp['date'].nunique() if not df_exp.empty else 0
 avg_per_day_all = total_expenses / unique_days_all if unique_days_all > 0 else 0
-col3.metric("متوسط الصرف العام 📊", f"{avg_per_day_all:.2f} ج.م/يوم")
 
+# عرض الأرصدة الأربعة في صف واحد
+c1, c2, c3, c4 = st.columns(4)
+c1.metric("💰 الإجمالي الكلي", f"{total_balance:.2f} ج.م", delta="- رصيد كلي سالب" if total_balance < 0 else None, delta_color="inverse")
+c2.metric("💵 رصيد نقدي", f"{cash_balance:.2f} ج.م")
+c3.metric("💳 رصيد فيزا", f"{visa_balance:.2f} ج.م")
+c4.metric("📱 فودافون كاش", f"{vf_balance:.2f} ج.م")
+
+st.markdown("---")
+# عرض ملخص المصاريف
+c_exp1, c_exp2 = st.columns(2)
+c_exp1.metric("💸 إجمالي المصاريف", f"{total_expenses:.2f} ج.م")
+c_exp2.metric("📊 متوسط الصرف العام", f"{avg_per_day_all:.2f} ج.م/يوم")
 st.markdown("---")
 
 tab_main_exp, tab_main_inc = st.tabs(["💸 سجل المصاريف", "💵 سجل الأرصدة المضافة"])
@@ -134,31 +166,29 @@ with tab_main_exp:
     if not df_exp.empty:
         st.subheader("📊 تفاصيل المصاريف حسب كل بند")
         
-        # التعديل الجديد: حساب الأيام لكل بند بشكل مستقل
         cat_stats = df_exp.groupby('category').agg(
             إجمالي_المبلغ=('amount', 'sum'),
             عدد_المرات=('amount', 'count'),
-            أيام_الصرف=('date', 'nunique') # بيحسب عدد الأيام اللي حصل فيها صرف للبند ده بس
+            أيام_الصرف=('date', 'nunique')
         ).reset_index()
         
-        # حساب متوسط اليوم بناءً على أيام البند فقط
         cat_stats['متوسط_اليوم_للبند'] = (cat_stats['إجمالي_المبلغ'] / cat_stats['أيام_الصرف']).round(2)
         cat_stats['إجمالي_المبلغ'] = cat_stats['إجمالي_المبلغ'].round(2)
         
         st.bar_chart(cat_stats.set_index('category')['إجمالي_المبلغ'])
         
-        st.write("**ملخص البنود (التقييم حسب أيام استخدام البند):**")
+        st.write("**ملخص البنود:**")
         st.dataframe(cat_stats.rename(columns={
             'category': 'البند',
-            'إجمالي_المبلغ': 'إجمالي الصرف (ج.م)',
-            'عدد_المرات': 'عدد الحركات',
-            'أيام_الصرف': 'عدد أيام الصرف',
-            'متوسط_اليوم_للبند': 'متوسط البند/يوم (ج.م)'
+            'إجمالي_المبلغ': 'إجمالي الصرف',
+            'عدد_المرات': 'الحركات',
+            'أيام_الصرف': 'أيام الصرف',
+            'متوسط_اليوم_للبند': 'متوسط البند/يوم'
         }), use_container_width=True)
         
         st.markdown("---")
         st.subheader("⚙️ تعديل أو حذف مصروف")
-        df_exp['display_text'] = df_exp['date'].astype(str) + " | " + df_exp['category'] + " | " + df_exp['amount'].astype(str) + " ج.م"
+        df_exp['display_text'] = df_exp['date'].astype(str) + " | " + df_exp['category'] + " | " + df_exp['amount'].astype(str) + " ج.م | " + df_exp['wallet']
         exp_options = dict(zip(df_exp['id'], df_exp['display_text']))
         
         selected_exp_id = st.selectbox("اختر المصروف لتعديله أو حذفه:", 
@@ -175,6 +205,10 @@ with tab_main_exp:
                         new_date = st.date_input("التاريخ", pd.to_datetime(row_data['date']).date())
                         cat_index = categories.index(row_data['category']) if row_data['category'] in categories else 0
                         new_category = st.selectbox("القسم", categories, index=cat_index)
+                        
+                        wal_index = wallets.index(row_data['wallet']) if row_data['wallet'] in wallets else 0
+                        new_wallet = st.selectbox("دُفع من", wallets, index=wal_index)
+                        
                         new_amount = st.number_input("المبلغ", min_value=0.0, value=float(row_data['amount']), format="%.2f")
                         current_desc = row_data['description'] if pd.notna(row_data['description']) else ""
                         new_desc = st.text_input("الوصف", value=str(current_desc))
@@ -183,8 +217,8 @@ with tab_main_exp:
                             with get_connection() as update_conn:
                                 update_conn.autocommit = True
                                 with update_conn.cursor() as update_c:
-                                    update_c.execute("UPDATE expenses SET date=%s, category=%s, amount=%s, description=%s WHERE id=%s",
-                                              (new_date.strftime("%Y-%m-%d"), new_category, new_amount, new_desc, selected_exp_id))
+                                    update_c.execute("UPDATE expenses SET date=%s, category=%s, amount=%s, description=%s, wallet=%s WHERE id=%s",
+                                              (new_date.strftime("%Y-%m-%d"), new_category, new_amount, new_desc, new_wallet, selected_exp_id))
                             st.success("تم التعديل!")
                             st.rerun()
             
@@ -206,20 +240,14 @@ with tab_main_exp:
             'date': 'التاريخ', 
             'category': 'البند', 
             'amount': 'المبلغ', 
-            'description': 'الوصف'
+            'description': 'الوصف',
+            'wallet': 'طريقة الدفع'
         }), use_container_width=True)
 
-        st.markdown("---")
         buffer = io.BytesIO()
         with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-            display_exp_df.rename(columns={'date': 'التاريخ', 'category': 'البند', 'amount': 'المبلغ', 'description': 'الوصف'}).to_excel(writer, index=False, sheet_name='المصاريف')
-        
-        st.download_button(
-            label="تحميل البيانات كملف Excel 📊",
-            data=buffer.getvalue(),
-            file_name=f"expenses_{datetime.today().strftime('%Y-%m-%d')}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+            display_exp_df.rename(columns={'date': 'التاريخ', 'category': 'البند', 'amount': 'المبلغ', 'description': 'الوصف', 'wallet': 'طريقة الدفع'}).to_excel(writer, index=False, sheet_name='المصاريف')
+        st.download_button("تحميل البيانات كملف Excel 📊", buffer.getvalue(), f"expenses_{datetime.today().strftime('%Y-%m-%d')}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     else:
         st.info("لم يتم إضافة أي مصاريف حتى الآن.")
 
@@ -227,7 +255,7 @@ with tab_main_inc:
     if not df_inc.empty:
         st.subheader("⚙️ تعديل أو حذف رصيد مضاف")
         df_inc['desc_str'] = df_inc['description'].fillna('بدون وصف').astype(str)
-        df_inc['display_text'] = df_inc['date'].astype(str) + " | " + df_inc['amount'].astype(str) + " ج.م | " + df_inc['desc_str']
+        df_inc['display_text'] = df_inc['date'].astype(str) + " | " + df_inc['wallet'] + " | " + df_inc['amount'].astype(str) + " ج.م | " + df_inc['desc_str']
         
         inc_options = dict(zip(df_inc['id'], df_inc['display_text']))
         
@@ -243,6 +271,10 @@ with tab_main_inc:
                 with st.expander("✏️ تعديل"):
                     with st.form("edit_inc_form"):
                         new_date = st.date_input("التاريخ", pd.to_datetime(row_data['date']).date())
+                        
+                        wal_index_inc = wallets.index(row_data['wallet']) if row_data['wallet'] in wallets else 0
+                        new_wallet = st.selectbox("المحفظة", wallets, index=wal_index_inc)
+                        
                         new_amount = st.number_input("المبلغ", min_value=0.0, value=float(row_data['amount']), format="%.2f")
                         current_desc = row_data['description'] if pd.notna(row_data['description']) else ""
                         new_desc = st.text_input("الوصف (المصدر)", value=str(current_desc))
@@ -251,8 +283,8 @@ with tab_main_inc:
                             with get_connection() as update_inc_conn:
                                 update_inc_conn.autocommit = True
                                 with update_inc_conn.cursor() as update_inc_c:
-                                    update_inc_c.execute("UPDATE income SET date=%s, amount=%s, description=%s WHERE id=%s",
-                                              (new_date.strftime("%Y-%m-%d"), new_amount, new_desc, selected_inc_id))
+                                    update_inc_c.execute("UPDATE income SET date=%s, amount=%s, description=%s, wallet=%s WHERE id=%s",
+                                              (new_date.strftime("%Y-%m-%d"), new_amount, new_desc, new_wallet, selected_inc_id))
                             st.success("تم التعديل!")
                             st.rerun()
             
@@ -272,6 +304,7 @@ with tab_main_inc:
         display_inc_df = df_inc.drop(columns=['id', 'display_text', 'desc_str'])
         st.dataframe(display_inc_df.rename(columns={
             'date': 'التاريخ', 
+            'wallet': 'أضيف إلى',
             'amount': 'المبلغ', 
             'description': 'مصدر الرصيد / الوصف'
         }), use_container_width=True)
