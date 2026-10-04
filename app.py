@@ -25,7 +25,7 @@ def logout():
 def get_connection():
     return psycopg2.connect(st.secrets["DATABASE_URL"])
 
-# إنشاء جدول المراقبة (سجل الزيارات) لو مش موجود
+# إنشاء جدول المراقبة (سجل الزيارات) 
 try:
     with get_connection() as setup_conn:
         setup_conn.autocommit = True
@@ -54,14 +54,21 @@ if not st.session_state["authenticated"]:
                 
                 # --- نظام التتبع وتسجيل بيانات الزائر ---
                 try:
-                    headers = st.context.headers
-                    ip = headers.get("X-Forwarded-For", "غير معروف").split(",")[0].strip()
-                    user_agent = headers.get("User-Agent", "جهاز غير معروف")
-                    location = "غير معروف"
+                    ip = "غير متوفر"
+                    user_agent = "غير متوفر"
+                    location = "غير متوفر"
                     
-                    if ip != "غير معروف":
+                    # محاولة جلب بيانات الزائر
+                    try:
+                        headers = st.context.headers
+                        ip = headers.get("X-Forwarded-For", "غير متوفر").split(",")[0].strip()
+                        user_agent = headers.get("User-Agent", "غير متوفر")
+                    except:
+                        pass
+                    
+                    # محاولة جلب الموقع الجغرافي
+                    if ip != "غير متوفر":
                         try:
-                            # جلب الموقع الجغرافي للـ IP
                             url = f"http://ip-api.com/json/{ip}"
                             req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
                             with urllib.request.urlopen(req, timeout=3) as response:
@@ -71,14 +78,14 @@ if not st.session_state["authenticated"]:
                         except:
                             pass
                             
-                    # حفظ بيانات الزيارة في قاعدة البيانات
+                    # حفظ الزيارة (تتنفذ دائماً)
                     with get_connection() as log_conn:
                         log_conn.autocommit = True
                         with log_conn.cursor() as log_c:
                             log_c.execute("INSERT INTO access_logs (timestamp, username, ip_address, device_info, location) VALUES (%s, %s, %s, %s, %s)",
                                           (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), username, ip, user_agent, location))
                 except Exception as e:
-                    pass # تجاهل الأخطاء لعدم إزعاج المستخدم
+                    pass # تجاهل الأخطاء لعدم تعطيل الدخول
 
                 st.rerun()
             else:
