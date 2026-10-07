@@ -55,6 +55,24 @@ if not st.session_state["authenticated"]:
             
             if is_admin or is_guest:
                 st.session_state.update({"authenticated": True, "role": "admin" if is_admin else "guest"})
+                try:
+                    headers = st.context.headers
+                    ip = headers.get("X-Forwarded-For", "غير متوفر").split(",")[0].strip()
+                    user_agent = headers.get("User-Agent", "غير متوفر")
+                    location = "غير متوفر"
+                    if ip != "غير متوفر":
+                        try:
+                            req = urllib.request.Request(f"http://ip-api.com/json/{ip}", headers={'User-Agent': 'Mozilla/5.0'})
+                            with urllib.request.urlopen(req, timeout=3) as response:
+                                data = json.loads(response.read().decode())
+                                if data.get("status") == "success": location = f"{data.get('country', '')} - {data.get('city', '')}"
+                        except: pass
+                    with get_connection() as log_conn:
+                        log_conn.autocommit = True
+                        with log_conn.cursor() as log_c:
+                            log_c.execute("INSERT INTO access_logs (timestamp, username, ip_address, device_info, location) VALUES (%s, %s, %s, %s, %s)",
+                                          (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), username, ip, user_agent, location))
+                except: pass
                 st.rerun()
             else:
                 st.error("❌ بيانات الدخول غير صحيحة!")
@@ -80,6 +98,7 @@ try:
         df_budgets = safe_read_sql("SELECT * FROM budgets", read_conn)
         df_debts = safe_read_sql("SELECT * FROM debts ORDER BY date DESC", read_conn)
         df_savings = safe_read_sql("SELECT * FROM savings", read_conn)
+        df_logs = safe_read_sql("SELECT * FROM access_logs ORDER BY id DESC LIMIT 50", read_conn)
         
         db_categories = df_exp['category'].unique().tolist() if not df_exp.empty and 'category' in df_exp.columns else []
         all_categories = sorted(list(set(default_categories + db_categories))) + ["➕ إضافة بند جديد..."]
@@ -169,49 +188,39 @@ if st.session_state["role"] == "admin":
                 st.rerun()
 
     elif operation == "✏️ تعديل وحذف":
-        st.sidebar.write("إدارة السجلات:")
         edit_action = st.sidebar.radio("اختر العملية:", ["تعديل مصروف", "تعديل رصيد", "حذف مصروف", "حذف رصيد"])
         
-        # --- تعديل المصروف الفعلي ---
         if edit_action == "تعديل مصروف" and not df_exp.empty:
             exp_id = st.sidebar.selectbox("اختر المصروف للتعديل:", df_exp['id'].tolist(), format_func=lambda x: f"{df_exp[df_exp['id']==x]['amount'].iloc[0]} ج - {df_exp[df_exp['id']==x]['category'].iloc[0]}")
             selected_exp = df_exp[df_exp['id'] == exp_id].iloc[0]
-            
             with st.sidebar.form("edit_exp_form"):
                 n_date = st.date_input("التاريخ", pd.to_datetime(selected_exp['date']))
-                n_cat = st.selectbox("القسم", all_categories, index=all_categories.index(selected_exp['category']) if selected_exp['category'] in all_categories else 0)
+                n_cat = st.selectbox("القسم", all_categories[:-1], index=all_categories[:-1].index(selected_exp['category']) if selected_exp['category'] in all_categories[:-1] else 0)
                 n_wallet = st.selectbox("المحفظة", wallets, index=wallets.index(selected_exp['wallet']) if selected_exp['wallet'] in wallets else 0)
                 n_amount = st.number_input("المبلغ", min_value=0.0, value=float(selected_exp['amount']))
                 n_desc = st.text_input("الوصف", value=str(selected_exp['description'] if pd.notna(selected_exp['description']) else ""))
-                
                 if st.form_submit_button("حفظ التعديلات 💾", use_container_width=True):
                     with get_connection() as conn:
                         conn.autocommit = True
                         with conn.cursor() as c:
-                            c.execute("UPDATE expenses SET date=%s, category=%s, amount=%s, description=%s, wallet=%s WHERE id=%s", 
-                                      (n_date.strftime("%Y-%m-%d"), n_cat, n_amount, n_desc, n_wallet, exp_id))
+                            c.execute("UPDATE expenses SET date=%s, category=%s, amount=%s, description=%s, wallet=%s WHERE id=%s", (n_date.strftime("%Y-%m-%d"), n_cat, n_amount, n_desc, n_wallet, exp_id))
                     st.rerun()
 
-        # --- تعديل الرصيد الفعلي ---
         elif edit_action == "تعديل رصيد" and not df_inc.empty:
             inc_id = st.sidebar.selectbox("اختر الرصيد للتعديل:", df_inc['id'].tolist(), format_func=lambda x: f"{df_inc[df_inc['id']==x]['amount'].iloc[0]} ج - {df_inc[df_inc['id']==x]['description'].iloc[0]}")
             selected_inc = df_inc[df_inc['id'] == inc_id].iloc[0]
-            
             with st.sidebar.form("edit_inc_form"):
                 n_date = st.date_input("التاريخ", pd.to_datetime(selected_inc['date']))
                 n_wallet = st.selectbox("المحفظة", wallets, index=wallets.index(selected_inc['wallet']) if selected_inc['wallet'] in wallets else 0)
                 n_amount = st.number_input("المبلغ", min_value=0.0, value=float(selected_inc['amount']))
                 n_desc = st.text_input("الوصف", value=str(selected_inc['description'] if pd.notna(selected_inc['description']) else ""))
-                
                 if st.form_submit_button("حفظ التعديلات 💾", use_container_width=True):
                     with get_connection() as conn:
                         conn.autocommit = True
                         with conn.cursor() as c:
-                            c.execute("UPDATE income SET date=%s, amount=%s, description=%s, wallet=%s WHERE id=%s", 
-                                      (n_date.strftime("%Y-%m-%d"), n_amount, n_desc, n_wallet, inc_id))
+                            c.execute("UPDATE income SET date=%s, amount=%s, description=%s, wallet=%s WHERE id=%s", (n_date.strftime("%Y-%m-%d"), n_amount, n_desc, n_wallet, inc_id))
                     st.rerun()
 
-        # --- الحذف ---
         elif edit_action == "حذف مصروف" and not df_exp.empty:
             del_id = st.sidebar.selectbox("اختر المصروف للإلغاء:", df_exp['id'].tolist(), format_func=lambda x: f"{df_exp[df_exp['id']==x]['amount'].iloc[0]} ج - {df_exp[df_exp['id']==x]['category'].iloc[0]}")
             if st.sidebar.button("🗑️ حذف المصروف نهائياً", use_container_width=True):
@@ -227,6 +236,12 @@ if st.session_state["role"] == "admin":
                     conn.autocommit = True
                     with conn.cursor() as c: c.execute("DELETE FROM income WHERE id=%s", (del_id,))
                 st.rerun()
+
+    # --- التحكم في حساب المتوسط (بناءً على طلبك) ---
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("⚙️ إعدادات حساب المتوسط")
+    excluded_categories = st.sidebar.multiselect("اختر البنود اللي مش عايزها تتحسب في المتوسط اليومي:", all_categories[:-1])
+
 else:
     st.sidebar.info("👁️ تتصفح كضيف (قراءة فقط).")
 
@@ -258,10 +273,12 @@ selected_month = st.selectbox("📅 فلترة البيانات حسب الشه�
 df_exp_view = df_exp if selected_month == "كل الشهور" or df_exp.empty else df_exp[df_exp['month_year'] == selected_month]
 total_exp_view = df_exp_view['amount'].sum() if not df_exp_view.empty and 'amount' in df_exp_view.columns else 0
 
-# --- حساب المتوسط ذكياً (بدون المصاريف الثابتة) ---
-fixed_categories = ["فواتير واشتراكات", "استثمارات", "كورسات وتعليم"] # دي الأقسام اللي مش هتتحسب في المتوسط اليومي
+# حساب المتوسط بناءً على اختيارك
 if not df_exp_view.empty and 'category' in df_exp_view.columns:
-    df_daily_exp = df_exp_view[~df_exp_view['category'].isin(fixed_categories)]
+    if "excluded_categories" in locals() and excluded_categories:
+        df_daily_exp = df_exp_view[~df_exp_view['category'].isin(excluded_categories)]
+    else:
+        df_daily_exp = df_exp_view
     total_daily_exp = df_daily_exp['amount'].sum() if not df_daily_exp.empty else 0
     unique_days = df_daily_exp['date'].nunique() if not df_daily_exp.empty else 0
     avg_per_day = total_daily_exp / unique_days if unique_days > 0 else 0
@@ -272,8 +289,8 @@ else:
 #                التابات
 # ==========================================
 if st.session_state["role"] == "admin":
-    tabs = st.tabs(["📊 المصاريف والميزانية", "🤝 الديون والتوفير", "🤖 المستشار الذكي", "💵 الأرصدة"])
-    tab_exp, tab_plan, tab_ai, tab_inc = tabs
+    tabs = st.tabs(["📊 المصاريف والميزانية", "🤝 الديون والتوفير", "🤖 المستشار الذكي", "💵 الأرصدة", "🛡️ سجل الزيارات"])
+    tab_exp, tab_plan, tab_ai, tab_inc, tab_sec = tabs
 else:
     tabs = st.tabs(["📊 المصاريف", "💵 الأرصدة"])
     tab_exp, tab_inc = tabs
@@ -281,14 +298,13 @@ else:
 with tab_exp:
     c_m1, c_m2 = st.columns(2)
     c_m1.metric(f"💸 إجمالي مصاريف ({selected_month})", f"{total_exp_view:.2f} ج.م")
-    c_m2.metric("📊 متوسط الصرف اليومي (بدون الثوابت)", f"{avg_per_day:.2f} ج.م")
+    c_m2.metric("📊 متوسط الصرف اليومي المخصص", f"{avg_per_day:.2f} ج.م")
     
     if not df_exp_view.empty:
-        # زرار تصدير للإكسيل
         buffer = io.BytesIO()
         with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
             df_exp_view.drop(columns=['month_year', 'id'], errors='ignore').to_excel(writer, sheet_name='المصاريف', index=False)
-        st.download_button(label="📥 تحميل المصاريف (شيت إكسيل)", data=buffer.getvalue(), file_name=f"expenses_{selected_month}.xlsx", mime="application/vnd.ms-excel")
+        st.download_button(label="📥 تحميل المصاريف (شيت إكسيل)", data=buffer.getvalue(), file_name=f"expenses_{selected_month}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         st.markdown("---")
         
         cat_group = df_exp_view.groupby('category')['amount'].sum().reset_index()
@@ -302,10 +318,9 @@ if st.session_state["role"] == "admin":
         st.dataframe(df_savings.drop(columns=['id'], errors='ignore'), use_container_width=True)
 
     with tab_ai:
-        st.subheader("🤖 أنا المستشار الخوارزمي - اسألني عن مصاريفك!")
-        
+        st.subheader("🤖 المستشار الخوارزمي - اسألني عن مصاريفك!")
         cat_totals_dict = df_exp_view.groupby('category')['amount'].sum().to_dict() if not df_exp_view.empty else {}
-        context_data = f"الرصيد: {total_bal_all} جنيه. المصاريف: {total_exp_view} جنيه. المتوسط اليومي: {avg_per_day:.2f} جنيه. تفاصيل: {cat_totals_dict}"
+        context_data = f"الرصيد الكلي: {total_bal_all} جنيه. مصاريف الشهر: {total_exp_view} جنيه. تفاصيل الأقسام: {cat_totals_dict}"
 
         if "chat_history" not in st.session_state:
             st.session_state.chat_history = []
@@ -314,27 +329,29 @@ if st.session_state["role"] == "admin":
             with st.chat_message(msg["role"]):
                 st.write(msg["content"])
                 
-        prompt = st.chat_input("اكتب سؤالك هنا.. (مثال: تنصحني أعمل إيه عشان أوفر 500 جنيه؟)")
-        
+        prompt = st.chat_input("اكتب سؤالك هنا..")
         if prompt:
             st.session_state.chat_history.append({"role": "user", "content": prompt})
-            with st.chat_message("user"):
-                st.write(prompt)
-                
+            with st.chat_message("user"): st.write(prompt)
             with st.chat_message("assistant"):
                 try:
                     import google.generativeai as genai
                     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
                     model = genai.GenerativeModel('gemini-3.8-flash')
-                    full_prompt = f"أنت مستشار مالي مصري. بيانات المستخدم: {context_data}. سؤال المستخدم: {prompt}"
-                    response = model.generate_content(full_prompt)
-                    reply = response.text
-                    st.write(reply)
-                    st.session_state.chat_history.append({"role": "assistant", "content": reply})
+                    response = model.generate_content(f"أنت مستشار مالي مصري. بيانات المستخدم: {context_data}. سؤال: {prompt}")
+                    st.write(response.text)
+                    st.session_state.chat_history.append({"role": "assistant", "content": response.text})
                 except Exception as e:
                     st.error(f"⚠️ تفاصيل الخطأ التقني: {repr(e)}")
+
+    with tab_sec:
+        st.subheader("🛡️ سجل الزيارات والأمان")
+        if not df_logs.empty:
+            st.dataframe(df_logs.drop(columns=['id'], errors='ignore'), use_container_width=True)
+        else:
+            st.info("لا توجد زيارات مسجلة حتى الآن.")
 
 with tab_inc:
     st.subheader("سجل الأرصدة المضافة")
     if not df_inc.empty:
-        st.dataframe(df_inc.drop(columns=['id'], errors='ignore'), use_container_width=True)
+        st.dataframe(df_inc.drop(columns=['id', 'month_year'], errors='ignore'), use_container_width=True)
