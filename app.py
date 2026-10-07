@@ -96,7 +96,7 @@ st.sidebar.title("إدارة الأموال 💼")
 
 if st.session_state["role"] == "admin":
     operation = st.sidebar.selectbox("ماذا تريد أن تفعل؟", 
-        ["💸 إضافة مصروف", "💵 إضافة رصيد", "🎯 تحديد ميزانية", "🤝 إضافة دين/سلفة", "🐷 هدف توفير"])
+        ["💸 إضافة مصروف", "💵 إضافة رصيد", "🎯 تحديد ميزانية", "🤝 إضافة دين/سلفة", "🐷 هدف توفير", "✏️ تعديل وحذف"])
     st.sidebar.markdown("---")
     
     if operation == "💸 إضافة مصروف":
@@ -113,7 +113,7 @@ if st.session_state["role"] == "admin":
                     with conn.cursor() as c:
                         c.execute("INSERT INTO expenses (date, category, amount, description, wallet) VALUES (%s, %s, %s, %s, %s)", 
                                   (date_input.strftime("%Y-%m-%d"), category_input.strip(), amount_input, desc_input, wallet_out))
-                st.sidebar.success("تم!")
+                st.sidebar.success("تم الحفظ!")
                 st.rerun()
 
     elif operation == "💵 إضافة رصيد":
@@ -128,6 +128,7 @@ if st.session_state["role"] == "admin":
                     with conn.cursor() as c:
                         c.execute("INSERT INTO income (date, amount, description, wallet) VALUES (%s, %s, %s, %s)", 
                                   (inc_date.strftime("%Y-%m-%d"), inc_amt, inc_desc, wallet_in))
+                st.sidebar.success("تم إضافة الرصيد!")
                 st.rerun()
 
     elif operation == "🎯 تحديد ميزانية":
@@ -166,6 +167,24 @@ if st.session_state["role"] == "admin":
                     with conn.cursor() as c:
                         c.execute("INSERT INTO savings (goal_name, target, saved) VALUES (%s, %s, %s)", (s_name, s_target, s_saved))
                 st.rerun()
+
+    elif operation == "✏️ تعديل وحذف":
+        st.sidebar.write("اختر السجل اللي عايز تحذفه عشان تعدله:")
+        del_type = st.sidebar.radio("", ["حذف مصروف", "حذف رصيد"])
+        if del_type == "حذف مصروف" and not df_exp.empty:
+            del_id = st.sidebar.selectbox("اختر المصروف للإلغاء:", df_exp['id'].tolist(), format_func=lambda x: f"{df_exp[df_exp['id']==x]['amount'].iloc[0]} ج - {df_exp[df_exp['id']==x]['category'].iloc[0]} ({df_exp[df_exp['id']==x]['date'].iloc[0]})")
+            if st.sidebar.button("🗑️ حذف المصروف نهائياً", use_container_width=True):
+                with get_connection() as conn:
+                    conn.autocommit = True
+                    with conn.cursor() as c: c.execute("DELETE FROM expenses WHERE id=%s", (del_id,))
+                st.rerun()
+        elif del_type == "حذف رصيد" and not df_inc.empty:
+            del_id = st.sidebar.selectbox("اختر الرصيد للإلغاء:", df_inc['id'].tolist(), format_func=lambda x: f"{df_inc[df_inc['id']==x]['amount'].iloc[0]} ج - {df_inc[df_inc['id']==x]['description'].iloc[0]}")
+            if st.sidebar.button("🗑️ حذف الرصيد نهائياً", use_container_width=True):
+                with get_connection() as conn:
+                    conn.autocommit = True
+                    with conn.cursor() as c: c.execute("DELETE FROM income WHERE id=%s", (del_id,))
+                st.rerun()
 else:
     st.sidebar.info("👁️ تتصفح كضيف (قراءة فقط).")
 
@@ -195,21 +214,34 @@ else:
 selected_month = st.selectbox("📅 فلترة البيانات حسب الشهر:", months_list)
 
 df_exp_view = df_exp if selected_month == "كل الشهور" or df_exp.empty else df_exp[df_exp['month_year'] == selected_month]
+
 total_exp_view = df_exp_view['amount'].sum() if not df_exp_view.empty and 'amount' in df_exp_view.columns else 0
+unique_days = df_exp_view['date'].nunique() if not df_exp_view.empty and 'date' in df_exp_view.columns else 0
+avg_per_day = total_exp_view / unique_days if unique_days > 0 else 0
 
 # ==========================================
 #                التابات
 # ==========================================
 if st.session_state["role"] == "admin":
-    tabs = st.tabs(["📊 المصاريف والميزانية", "🤝 الديون والتوفير", "🤖 المستشار الذكي (Gemini)", "💵 الأرصدة"])
+    tabs = st.tabs(["📊 المصاريف والميزانية", "🤝 الديون والتوفير", "🤖 المستشار الذكي", "💵 الأرصدة"])
     tab_exp, tab_plan, tab_ai, tab_inc = tabs
 else:
     tabs = st.tabs(["📊 المصاريف", "💵 الأرصدة"])
     tab_exp, tab_inc = tabs
 
 with tab_exp:
-    st.subheader(f"💸 إجمالي مصاريف ({selected_month}): {total_exp_view:.2f} ج.م")
+    c_m1, c_m2 = st.columns(2)
+    c_m1.metric(f"💸 إجمالي مصاريف ({selected_month})", f"{total_exp_view:.2f} ج.م")
+    c_m2.metric("📊 متوسط الصرف اليومي", f"{avg_per_day:.2f} ج.م")
+    
     if not df_exp_view.empty:
+        # زرار تصدير للإكسيل
+        buffer = io.BytesIO()
+        with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+            df_exp_view.drop(columns=['month_year', 'id'], errors='ignore').to_excel(writer, sheet_name='المصاريف', index=False)
+        st.download_button(label="📥 تحميل المصاريف (شيت إكسيل)", data=buffer.getvalue(), file_name=f"expenses_{selected_month}.xlsx", mime="application/vnd.ms-excel")
+        st.markdown("---")
+        
         cat_group = df_exp_view.groupby('category')['amount'].sum().reset_index()
         st.bar_chart(cat_group.set_index('category'))
         st.dataframe(df_exp_view.drop(columns=['id', 'month_year'], errors='ignore'), use_container_width=True)
@@ -224,7 +256,7 @@ if st.session_state["role"] == "admin":
         st.subheader("🤖 أنا المستشار الخوارزمي - اسألني عن مصاريفك!")
         
         cat_totals_dict = df_exp_view.groupby('category')['amount'].sum().to_dict() if not df_exp_view.empty else {}
-        context_data = f"الرصيد: {total_bal_all} جنيه. المصاريف: {total_exp_view} جنيه. تفاصيل: {cat_totals_dict}"
+        context_data = f"الرصيد: {total_bal_all} جنيه. المصاريف: {total_exp_view} جنيه. المتوسط اليومي: {avg_per_day:.2f} جنيه. تفاصيل: {cat_totals_dict}"
 
         if "chat_history" not in st.session_state:
             st.session_state.chat_history = []
@@ -244,8 +276,6 @@ if st.session_state["role"] == "admin":
                 try:
                     import google.generativeai as genai
                     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-                    
-                    # استخدام النسخة الجديدة المحدثة من جوجل مباشرة
                     model = genai.GenerativeModel('gemini-3.8-flash')
                     full_prompt = f"أنت مستشار مالي مصري. بيانات المستخدم: {context_data}. سؤال المستخدم: {prompt}"
                     response = model.generate_content(full_prompt)
