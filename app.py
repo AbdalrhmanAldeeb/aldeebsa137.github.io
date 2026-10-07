@@ -34,6 +34,8 @@ def init_db():
         c.execute('''CREATE TABLE IF NOT EXISTS budgets (category TEXT UNIQUE, limit_amount REAL)''')
         c.execute('''CREATE TABLE IF NOT EXISTS debts (id SERIAL PRIMARY KEY, date TEXT, person TEXT, amount REAL, type TEXT, description TEXT)''')
         c.execute('''CREATE TABLE IF NOT EXISTS savings (id SERIAL PRIMARY KEY, goal_name TEXT, target REAL, saved REAL)''')
+        # جدول التحويلات الجديد
+        c.execute('''CREATE TABLE IF NOT EXISTS transfers (id SERIAL PRIMARY KEY, date TEXT, from_wallet TEXT, to_wallet TEXT, amount REAL)''')
         try: c.execute("ALTER TABLE expenses ADD COLUMN wallet TEXT DEFAULT 'نقدي'")
         except: pass
         try: c.execute("ALTER TABLE income ADD COLUMN wallet TEXT DEFAULT 'نقدي'")
@@ -99,6 +101,7 @@ try:
         df_debts = safe_read_sql("SELECT * FROM debts ORDER BY date DESC", read_conn)
         df_savings = safe_read_sql("SELECT * FROM savings", read_conn)
         df_logs = safe_read_sql("SELECT * FROM access_logs ORDER BY id DESC LIMIT 50", read_conn)
+        df_transfers = safe_read_sql("SELECT * FROM transfers ORDER BY date DESC, id DESC", read_conn) # قراءة التحويلات
         
         db_categories = df_exp['category'].unique().tolist() if not df_exp.empty and 'category' in df_exp.columns else []
         all_categories = sorted(list(set(default_categories + db_categories))) + ["➕ إضافة بند جديد..."]
@@ -115,7 +118,7 @@ st.sidebar.title("إدارة الأموال 💼")
 
 if st.session_state["role"] == "admin":
     operation = st.sidebar.selectbox("ماذا تريد أن تفعل؟", 
-        ["💸 إضافة مصروف", "💵 إضافة رصيد", "🎯 تحديد ميزانية", "🤝 إضافة دين/سلفة", "🐷 هدف توفير", "✏️ تعديل وحذف"])
+        ["💸 إضافة مصروف", "💵 إضافة رصيد", "🔄 تحويل بين المحافظ", "🎯 تحديد ميزانية", "🤝 إضافة دين/سلفة", "🐷 هدف توفير", "✏️ تعديل وحذف"])
     st.sidebar.markdown("---")
     
     if operation == "💸 إضافة مصروف":
@@ -149,6 +152,25 @@ if st.session_state["role"] == "admin":
                                   (inc_date.strftime("%Y-%m-%d"), inc_amt, inc_desc, wallet_in))
                 st.sidebar.success("تم إضافة الرصيد!")
                 st.rerun()
+
+    # الميزة الجديدة: التحويل بين المحافظ
+    elif operation == "🔄 تحويل بين المحافظ":
+        t_date = st.sidebar.date_input("التاريخ", datetime.today())
+        wallet_from = st.sidebar.selectbox("من محفظة (تُخصم منها)", wallets, index=0)
+        wallet_to = st.sidebar.selectbox("إلى محفظة (تُضاف إليها)", wallets, index=1)
+        t_amount = st.sidebar.number_input("المبلغ المحول", min_value=0.0, format="%.2f")
+        
+        if st.sidebar.button("تنفيذ التحويل ✅", use_container_width=True):
+            if t_amount > 0 and wallet_from != wallet_to:
+                with get_connection() as conn:
+                    conn.autocommit = True
+                    with conn.cursor() as c:
+                        c.execute("INSERT INTO transfers (date, from_wallet, to_wallet, amount) VALUES (%s, %s, %s, %s)", 
+                                  (t_date.strftime("%Y-%m-%d"), wallet_from, wallet_to, t_amount))
+                st.sidebar.success("تم نقل الرصيد بنجاح!")
+                st.rerun()
+            elif wallet_from == wallet_to:
+                st.sidebar.error("⚠️ لا يمكن التحويل لنفس المحفظة!")
 
     elif operation == "🎯 تحديد ميزانية":
         budg_cat = st.sidebar.selectbox("اختر البند", [c for c in all_categories if c != "➕ إضافة بند جديد..."])
@@ -188,7 +210,7 @@ if st.session_state["role"] == "admin":
                 st.rerun()
 
     elif operation == "✏️ تعديل وحذف":
-        edit_action = st.sidebar.radio("اختر العملية:", ["تعديل مصروف", "تعديل رصيد", "حذف مصروف", "حذف رصيد"])
+        edit_action = st.sidebar.radio("اختر العملية:", ["تعديل مصروف", "تعديل رصيد", "حذف مصروف", "حذف رصيد", "حذف تحويل"])
         
         if edit_action == "تعديل مصروف" and not df_exp.empty:
             exp_id = st.sidebar.selectbox("اختر المصروف للتعديل:", df_exp['id'].tolist(), format_func=lambda x: f"{df_exp[df_exp['id']==x]['amount'].iloc[0]} ج - {df_exp[df_exp['id']==x]['category'].iloc[0]}")
@@ -236,8 +258,17 @@ if st.session_state["role"] == "admin":
                     conn.autocommit = True
                     with conn.cursor() as c: c.execute("DELETE FROM income WHERE id=%s", (del_id,))
                 st.rerun()
+                
+        # إلغاء تحويل
+        elif edit_action == "حذف تحويل" and not df_transfers.empty:
+            del_id = st.sidebar.selectbox("اختر التحويل للإلغاء:", df_transfers['id'].tolist(), format_func=lambda x: f"{df_transfers[df_transfers['id']==x]['amount'].iloc[0]} ج (من {df_transfers[df_transfers['id']==x]['from_wallet'].iloc[0]} لـ {df_transfers[df_transfers['id']==x]['to_wallet'].iloc[0]})")
+            if st.sidebar.button("🗑️ حذف التحويل", use_container_width=True):
+                with get_connection() as conn:
+                    conn.autocommit = True
+                    with conn.cursor() as c: c.execute("DELETE FROM transfers WHERE id=%s", (del_id,))
+                st.rerun()
 
-    # --- التحكم في حساب المتوسط (بناءً على طلبك) ---
+    # --- التحكم في حساب المتوسط ---
     st.sidebar.markdown("---")
     st.sidebar.subheader("⚙️ إعدادات حساب المتوسط")
     excluded_categories = st.sidebar.multiselect("اختر البنود اللي مش عايزها تتحسب في المتوسط اليومي:", all_categories[:-1])
@@ -246,12 +277,19 @@ else:
     st.sidebar.info("👁️ تتصفح كضيف (قراءة فقط).")
 
 # ==========================================
-#        المحفظة العامة والفلترة
+#        المحفظة العامة والفلترة (تم التحديث للتحويلات)
 # ==========================================
 def get_balance(wallet_name):
+    # حساب الرصيد المضاف
     inc = df_inc[df_inc['wallet'] == wallet_name]['amount'].sum() if not df_inc.empty and 'wallet' in df_inc.columns else 0
+    # حساب المصاريف المخصومة
     exp = df_exp[df_exp['wallet'] == wallet_name]['amount'].sum() if not df_exp.empty and 'wallet' in df_exp.columns else 0
-    return inc - exp
+    
+    # حساب التحويلات (طرح اللي طالع من المحفظة، وجمع اللي داخل ليها)
+    trans_out = df_transfers[df_transfers['from_wallet'] == wallet_name]['amount'].sum() if not df_transfers.empty else 0
+    trans_in = df_transfers[df_transfers['to_wallet'] == wallet_name]['amount'].sum() if not df_transfers.empty else 0
+    
+    return inc - exp + trans_in - trans_out
 
 total_bal_all = get_balance('نقدي') + get_balance('فيزا') + get_balance('فودافون كاش')
 
@@ -289,7 +327,7 @@ else:
 #                التابات
 # ==========================================
 if st.session_state["role"] == "admin":
-    tabs = st.tabs(["📊 المصاريف والميزانية", "🤝 الديون والتوفير", "🤖 المستشار الذكي", "💵 الأرصدة", "🛡️ سجل الزيارات"])
+    tabs = st.tabs(["📊 المصاريف والميزانية", "🤝 الديون والتوفير", "🤖 المستشار الذكي", "💵 الأرصدة والتحويلات", "🛡️ سجل الزيارات"])
     tab_exp, tab_plan, tab_ai, tab_inc, tab_sec = tabs
 else:
     tabs = st.tabs(["📊 المصاريف", "💵 الأرصدة"])
@@ -355,3 +393,11 @@ with tab_inc:
     st.subheader("سجل الأرصدة المضافة")
     if not df_inc.empty:
         st.dataframe(df_inc.drop(columns=['id', 'month_year'], errors='ignore'), use_container_width=True)
+    
+    # عرض سجل التحويلات الجديد
+    st.markdown("---")
+    st.subheader("🔄 سجل التحويلات بين المحافظ")
+    if not df_transfers.empty:
+        st.dataframe(df_transfers.drop(columns=['id'], errors='ignore'), use_container_width=True)
+    else:
+        st.info("لا توجد عمليات تحويل مسجلة حتى الآن.")
