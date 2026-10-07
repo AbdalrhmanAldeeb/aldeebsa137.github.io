@@ -169,16 +169,58 @@ if st.session_state["role"] == "admin":
                 st.rerun()
 
     elif operation == "✏️ تعديل وحذف":
-        st.sidebar.write("اختر السجل اللي عايز تحذفه عشان تعدله:")
-        del_type = st.sidebar.radio("", ["حذف مصروف", "حذف رصيد"])
-        if del_type == "حذف مصروف" and not df_exp.empty:
-            del_id = st.sidebar.selectbox("اختر المصروف للإلغاء:", df_exp['id'].tolist(), format_func=lambda x: f"{df_exp[df_exp['id']==x]['amount'].iloc[0]} ج - {df_exp[df_exp['id']==x]['category'].iloc[0]} ({df_exp[df_exp['id']==x]['date'].iloc[0]})")
+        st.sidebar.write("إدارة السجلات:")
+        edit_action = st.sidebar.radio("اختر العملية:", ["تعديل مصروف", "تعديل رصيد", "حذف مصروف", "حذف رصيد"])
+        
+        # --- تعديل المصروف الفعلي ---
+        if edit_action == "تعديل مصروف" and not df_exp.empty:
+            exp_id = st.sidebar.selectbox("اختر المصروف للتعديل:", df_exp['id'].tolist(), format_func=lambda x: f"{df_exp[df_exp['id']==x]['amount'].iloc[0]} ج - {df_exp[df_exp['id']==x]['category'].iloc[0]}")
+            selected_exp = df_exp[df_exp['id'] == exp_id].iloc[0]
+            
+            with st.sidebar.form("edit_exp_form"):
+                n_date = st.date_input("التاريخ", pd.to_datetime(selected_exp['date']))
+                n_cat = st.selectbox("القسم", all_categories, index=all_categories.index(selected_exp['category']) if selected_exp['category'] in all_categories else 0)
+                n_wallet = st.selectbox("المحفظة", wallets, index=wallets.index(selected_exp['wallet']) if selected_exp['wallet'] in wallets else 0)
+                n_amount = st.number_input("المبلغ", min_value=0.0, value=float(selected_exp['amount']))
+                n_desc = st.text_input("الوصف", value=str(selected_exp['description'] if pd.notna(selected_exp['description']) else ""))
+                
+                if st.form_submit_button("حفظ التعديلات 💾", use_container_width=True):
+                    with get_connection() as conn:
+                        conn.autocommit = True
+                        with conn.cursor() as c:
+                            c.execute("UPDATE expenses SET date=%s, category=%s, amount=%s, description=%s, wallet=%s WHERE id=%s", 
+                                      (n_date.strftime("%Y-%m-%d"), n_cat, n_amount, n_desc, n_wallet, exp_id))
+                    st.rerun()
+
+        # --- تعديل الرصيد الفعلي ---
+        elif edit_action == "تعديل رصيد" and not df_inc.empty:
+            inc_id = st.sidebar.selectbox("اختر الرصيد للتعديل:", df_inc['id'].tolist(), format_func=lambda x: f"{df_inc[df_inc['id']==x]['amount'].iloc[0]} ج - {df_inc[df_inc['id']==x]['description'].iloc[0]}")
+            selected_inc = df_inc[df_inc['id'] == inc_id].iloc[0]
+            
+            with st.sidebar.form("edit_inc_form"):
+                n_date = st.date_input("التاريخ", pd.to_datetime(selected_inc['date']))
+                n_wallet = st.selectbox("المحفظة", wallets, index=wallets.index(selected_inc['wallet']) if selected_inc['wallet'] in wallets else 0)
+                n_amount = st.number_input("المبلغ", min_value=0.0, value=float(selected_inc['amount']))
+                n_desc = st.text_input("الوصف", value=str(selected_inc['description'] if pd.notna(selected_inc['description']) else ""))
+                
+                if st.form_submit_button("حفظ التعديلات 💾", use_container_width=True):
+                    with get_connection() as conn:
+                        conn.autocommit = True
+                        with conn.cursor() as c:
+                            c.execute("UPDATE income SET date=%s, amount=%s, description=%s, wallet=%s WHERE id=%s", 
+                                      (n_date.strftime("%Y-%m-%d"), n_amount, n_desc, n_wallet, inc_id))
+                    st.rerun()
+
+        # --- الحذف ---
+        elif edit_action == "حذف مصروف" and not df_exp.empty:
+            del_id = st.sidebar.selectbox("اختر المصروف للإلغاء:", df_exp['id'].tolist(), format_func=lambda x: f"{df_exp[df_exp['id']==x]['amount'].iloc[0]} ج - {df_exp[df_exp['id']==x]['category'].iloc[0]}")
             if st.sidebar.button("🗑️ حذف المصروف نهائياً", use_container_width=True):
                 with get_connection() as conn:
                     conn.autocommit = True
                     with conn.cursor() as c: c.execute("DELETE FROM expenses WHERE id=%s", (del_id,))
                 st.rerun()
-        elif del_type == "حذف رصيد" and not df_inc.empty:
+                
+        elif edit_action == "حذف رصيد" and not df_inc.empty:
             del_id = st.sidebar.selectbox("اختر الرصيد للإلغاء:", df_inc['id'].tolist(), format_func=lambda x: f"{df_inc[df_inc['id']==x]['amount'].iloc[0]} ج - {df_inc[df_inc['id']==x]['description'].iloc[0]}")
             if st.sidebar.button("🗑️ حذف الرصيد نهائياً", use_container_width=True):
                 with get_connection() as conn:
@@ -214,10 +256,17 @@ else:
 selected_month = st.selectbox("📅 فلترة البيانات حسب الشهر:", months_list)
 
 df_exp_view = df_exp if selected_month == "كل الشهور" or df_exp.empty else df_exp[df_exp['month_year'] == selected_month]
-
 total_exp_view = df_exp_view['amount'].sum() if not df_exp_view.empty and 'amount' in df_exp_view.columns else 0
-unique_days = df_exp_view['date'].nunique() if not df_exp_view.empty and 'date' in df_exp_view.columns else 0
-avg_per_day = total_exp_view / unique_days if unique_days > 0 else 0
+
+# --- حساب المتوسط ذكياً (بدون المصاريف الثابتة) ---
+fixed_categories = ["فواتير واشتراكات", "استثمارات", "كورسات وتعليم"] # دي الأقسام اللي مش هتتحسب في المتوسط اليومي
+if not df_exp_view.empty and 'category' in df_exp_view.columns:
+    df_daily_exp = df_exp_view[~df_exp_view['category'].isin(fixed_categories)]
+    total_daily_exp = df_daily_exp['amount'].sum() if not df_daily_exp.empty else 0
+    unique_days = df_daily_exp['date'].nunique() if not df_daily_exp.empty else 0
+    avg_per_day = total_daily_exp / unique_days if unique_days > 0 else 0
+else:
+    avg_per_day = 0
 
 # ==========================================
 #                التابات
@@ -232,7 +281,7 @@ else:
 with tab_exp:
     c_m1, c_m2 = st.columns(2)
     c_m1.metric(f"💸 إجمالي مصاريف ({selected_month})", f"{total_exp_view:.2f} ج.م")
-    c_m2.metric("📊 متوسط الصرف اليومي", f"{avg_per_day:.2f} ج.م")
+    c_m2.metric("📊 متوسط الصرف اليومي (بدون الثوابت)", f"{avg_per_day:.2f} ج.م")
     
     if not df_exp_view.empty:
         # زرار تصدير للإكسيل
