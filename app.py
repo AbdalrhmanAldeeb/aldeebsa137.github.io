@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import altair as alt
 import psycopg2
 from datetime import datetime
 import io
@@ -10,6 +11,143 @@ import json
 warnings.filterwarnings('ignore')
 
 st.set_page_config(page_title="النظام المالي المتكامل", page_icon="💎", layout="wide")
+
+# ==========================================
+#                 التصميم (CSS)
+# ==========================================
+# الألوان:  حبر #0F2A2E  |  تيل #0E7C7B  |  خلفية #F2F5F5  |  سطح #FFFFFF
+#           أخضر #1B9E6B  |  كهرماني #E0A526  |  أحمر #D1495B
+CUSTOM_CSS = """
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap');
+
+:root{
+    --ink:#0F2A2E; --ink-soft:#5B7074; --teal:#0E7C7B; --teal-dark:#0A5F5E;
+    --bg:#F2F5F5; --surface:#FFFFFF; --line:#E0E8E8;
+    --ok:#1B9E6B; --warn:#E0A526; --bad:#D1495B;
+}
+
+/* الخط والاتجاه */
+.stApp, .stApp p, .stApp label, .stApp input, .stApp textarea, .stApp button,
+.stApp h1, .stApp h2, .stApp h3, .stApp h4,
+[data-testid="stMarkdownContainer"], [data-testid="stMetricValue"], [data-testid="stMetricLabel"]{
+    font-family:'IBM Plex Sans Arabic', sans-serif !important;
+}
+.stApp{ background:var(--bg); color:var(--ink); }
+[data-testid="stMain"], [data-testid="stSidebar"]{ direction:rtl; text-align:right; }
+[data-testid="stHeader"]{ background:transparent; }
+#MainMenu, footer{ visibility:hidden; }
+.block-container{ padding-top:2rem; padding-bottom:3rem; max-width:1200px; }
+
+/* العناوين */
+h1{ font-weight:700 !important; letter-spacing:-0.01em; color:var(--ink); }
+h2, h3{ font-weight:600 !important; color:var(--ink); }
+
+/* الشريط الجانبي */
+[data-testid="stSidebar"]{
+    background:#E8EFEF;
+    border-left:1px solid var(--line);
+}
+[data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3{
+    font-size:1.15rem; color:var(--ink);
+}
+[data-testid="stSidebar"] hr{ border-color:#D3DEDE; }
+
+/* حقول الإدخال */
+.stTextInput input, .stNumberInput input, .stDateInput input,
+div[data-baseweb="select"] > div{
+    background:var(--surface) !important;
+    border:1px solid var(--line) !important;
+    border-radius:10px !important;
+    color:var(--ink) !important;
+}
+.stTextInput input:focus, .stNumberInput input:focus, .stDateInput input:focus{
+    border-color:var(--teal) !important;
+    box-shadow:0 0 0 3px rgba(14,124,123,.15) !important;
+}
+
+/* الأزرار */
+.stButton > button, .stDownloadButton > button, [data-testid="stFormSubmitButton"] > button{
+    background:var(--teal);
+    color:#fff;
+    border:none;
+    border-radius:10px;
+    padding:.55rem 1.1rem;
+    font-weight:600;
+    transition:background .15s ease;
+}
+.stButton > button:hover, .stDownloadButton > button:hover, [data-testid="stFormSubmitButton"] > button:hover{
+    background:var(--teal-dark); color:#fff;
+}
+.stButton > button:focus-visible, .stDownloadButton > button:focus-visible{
+    outline:3px solid rgba(14,124,123,.35); outline-offset:2px;
+}
+
+/* بطاقات المؤشرات */
+[data-testid="stMetric"]{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:1rem 1.25rem;
+}
+[data-testid="stMetricLabel"]{ color:var(--ink-soft); font-weight:500; }
+[data-testid="stMetricValue"]{ font-weight:600; font-size:1.6rem; color:var(--ink); }
+
+/* بطاقة الرصيد الرئيسية */
+.hero{
+    background:linear-gradient(135deg,#0F2A2E 0%,#13474A 100%);
+    color:#fff;
+    border-radius:20px;
+    padding:1.75rem 2rem;
+    margin-bottom:1.25rem;
+}
+.hero-label{ font-size:.95rem; color:#A9C4C5; margin-bottom:.35rem; }
+.hero-amount{ font-size:2.8rem; font-weight:700; line-height:1.1; letter-spacing:-0.02em; }
+.hero-amount span{ font-size:1.1rem; font-weight:400; color:#A9C4C5; margin-right:.4rem; }
+.hero-wallets{
+    display:flex; flex-wrap:wrap; gap:1rem 2.5rem;
+    margin-top:1.4rem; padding-top:1.2rem;
+    border-top:1px solid rgba(255,255,255,.14);
+}
+.hero-wallet .w-name{ font-size:.85rem; color:#A9C4C5; }
+.hero-wallet .w-val{ font-size:1.25rem; font-weight:600; }
+.hero-wallet .w-val.neg{ color:#FF9AA6; }
+
+/* الميزانية */
+.budget{ background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:.8rem 1rem; margin-bottom:.6rem; }
+.b-head{ display:flex; justify-content:space-between; font-size:.92rem; margin-bottom:.45rem; }
+.b-head .b-nums{ color:var(--ink-soft); }
+.b-track{ height:8px; background:#E6EDED; border-radius:99px; overflow:hidden; }
+.b-fill{ height:100%; border-radius:99px; background:var(--ok); }
+.b-fill.warn{ background:var(--warn); }
+.b-fill.bad{ background:var(--bad); }
+
+/* التابات */
+.stTabs [data-baseweb="tab-list"]{ gap:.25rem; border-bottom:1px solid var(--line); }
+.stTabs [data-baseweb="tab"]{ padding:.6rem 1rem; color:var(--ink-soft); font-weight:500; }
+.stTabs [aria-selected="true"]{ color:var(--teal); }
+.stTabs [data-baseweb="tab-highlight"]{ background:var(--teal); height:3px; }
+
+/* الجداول والتنبيهات */
+[data-testid="stDataFrame"]{ border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+[data-testid="stAlert"]{ border-radius:12px; }
+hr{ border-color:var(--line); }
+
+/* نموذج الدخول */
+[data-testid="stForm"]{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:16px;
+    padding:1.5rem;
+}
+
+@media (max-width:640px){
+    .hero{ padding:1.25rem; }
+    .hero-amount{ font-size:2.1rem; }
+}
+</style>
+"""
+st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
 # ==========================================
 #             نظام الأمان والاتصال
@@ -34,7 +172,6 @@ def init_db():
         c.execute('''CREATE TABLE IF NOT EXISTS budgets (category TEXT UNIQUE, limit_amount REAL)''')
         c.execute('''CREATE TABLE IF NOT EXISTS debts (id SERIAL PRIMARY KEY, date TEXT, person TEXT, amount REAL, type TEXT, description TEXT)''')
         c.execute('''CREATE TABLE IF NOT EXISTS savings (id SERIAL PRIMARY KEY, goal_name TEXT, target REAL, saved REAL)''')
-        # جدول التحويلات الجديد
         c.execute('''CREATE TABLE IF NOT EXISTS transfers (id SERIAL PRIMARY KEY, date TEXT, from_wallet TEXT, to_wallet TEXT, amount REAL)''')
         try: c.execute("ALTER TABLE expenses ADD COLUMN wallet TEXT DEFAULT 'نقدي'")
         except: pass
@@ -47,14 +184,19 @@ def init_db():
 init_db()
 
 if not st.session_state["authenticated"]:
-    st.title("🔒 نظام الدخول الآمن")
-    with st.form("login_form"):
-        username = st.text_input("اسم المستخدم")
-        password = st.text_input("كلمة المرور", type="password")
-        if st.form_submit_button("دخول"):
+    _, mid, _ = st.columns([1, 1.2, 1])
+    with mid:
+        st.markdown("<div style='height:8vh'></div>", unsafe_allow_html=True)
+        st.title("💎 تسجيل الدخول")
+        st.caption("ادخل ببياناتك لمتابعة محافظك ومصاريفك.")
+        with st.form("login_form"):
+            username = st.text_input("اسم المستخدم")
+            password = st.text_input("كلمة المرور", type="password")
+            submitted = st.form_submit_button("دخول", use_container_width=True)
+        if submitted:
             is_admin = (username == st.secrets.get("APP_USERNAME") and password == st.secrets.get("APP_PASSWORD"))
             is_guest = (username == st.secrets.get("GUEST_USERNAME") and password == st.secrets.get("GUEST_PASSWORD"))
-            
+
             if is_admin or is_guest:
                 st.session_state.update({"authenticated": True, "role": "admin" if is_admin else "guest"})
                 try:
@@ -77,11 +219,11 @@ if not st.session_state["authenticated"]:
                 except: pass
                 st.rerun()
             else:
-                st.error("❌ بيانات الدخول غير صحيحة!")
+                st.error("اسم المستخدم أو كلمة المرور غير صحيحة. راجع البيانات وحاول مرة تانية.")
     st.stop()
 
 # ==========================================
-#         البرنامج الرئيسي 
+#         البرنامج الرئيسي
 # ==========================================
 st.sidebar.button("تسجيل الخروج 🚪", on_click=logout, use_container_width=True)
 st.sidebar.markdown("---")
@@ -101,12 +243,12 @@ try:
         df_debts = safe_read_sql("SELECT * FROM debts ORDER BY date DESC", read_conn)
         df_savings = safe_read_sql("SELECT * FROM savings", read_conn)
         df_logs = safe_read_sql("SELECT * FROM access_logs ORDER BY id DESC LIMIT 50", read_conn)
-        df_transfers = safe_read_sql("SELECT * FROM transfers ORDER BY date DESC, id DESC", read_conn) # قراءة التحويلات
-        
+        df_transfers = safe_read_sql("SELECT * FROM transfers ORDER BY date DESC, id DESC", read_conn)
+
         db_categories = df_exp['category'].unique().tolist() if not df_exp.empty and 'category' in df_exp.columns else []
         all_categories = sorted(list(set(default_categories + db_categories))) + ["➕ إضافة بند جديد..."]
 except Exception as e:
-    st.error("خطأ في الاتصال بقاعدة البيانات.")
+    st.error("تعذّر الاتصال بقاعدة البيانات. تأكد من رابط DATABASE_URL في الإعدادات وحاول تاني.")
     st.stop()
 
 st.title("💎 النظام المالي المتكامل")
@@ -117,10 +259,10 @@ st.title("💎 النظام المالي المتكامل")
 st.sidebar.title("إدارة الأموال 💼")
 
 if st.session_state["role"] == "admin":
-    operation = st.sidebar.selectbox("ماذا تريد أن تفعل؟", 
+    operation = st.sidebar.selectbox("ماذا تريد أن تفعل؟",
         ["💸 إضافة مصروف", "💵 إضافة رصيد", "🔄 تحويل بين المحافظ", "🎯 تحديد ميزانية", "🤝 إضافة دين/سلفة", "🐷 هدف توفير", "✏️ تعديل وحذف"])
     st.sidebar.markdown("---")
-    
+
     if operation == "💸 إضافة مصروف":
         date_input = st.sidebar.date_input("التاريخ", datetime.today())
         cat_sel = st.sidebar.selectbox("القسم", all_categories)
@@ -133,7 +275,7 @@ if st.session_state["role"] == "admin":
                 with get_connection() as conn:
                     conn.autocommit = True
                     with conn.cursor() as c:
-                        c.execute("INSERT INTO expenses (date, category, amount, description, wallet) VALUES (%s, %s, %s, %s, %s)", 
+                        c.execute("INSERT INTO expenses (date, category, amount, description, wallet) VALUES (%s, %s, %s, %s, %s)",
                                   (date_input.strftime("%Y-%m-%d"), category_input.strip(), amount_input, desc_input, wallet_out))
                 st.sidebar.success("تم الحفظ!")
                 st.rerun()
@@ -148,24 +290,23 @@ if st.session_state["role"] == "admin":
                 with get_connection() as conn:
                     conn.autocommit = True
                     with conn.cursor() as c:
-                        c.execute("INSERT INTO income (date, amount, description, wallet) VALUES (%s, %s, %s, %s)", 
+                        c.execute("INSERT INTO income (date, amount, description, wallet) VALUES (%s, %s, %s, %s)",
                                   (inc_date.strftime("%Y-%m-%d"), inc_amt, inc_desc, wallet_in))
                 st.sidebar.success("تم إضافة الرصيد!")
                 st.rerun()
 
-    # الميزة الجديدة: التحويل بين المحافظ
     elif operation == "🔄 تحويل بين المحافظ":
         t_date = st.sidebar.date_input("التاريخ", datetime.today())
         wallet_from = st.sidebar.selectbox("من محفظة (تُخصم منها)", wallets, index=0)
         wallet_to = st.sidebar.selectbox("إلى محفظة (تُضاف إليها)", wallets, index=1)
         t_amount = st.sidebar.number_input("المبلغ المحول", min_value=0.0, format="%.2f")
-        
+
         if st.sidebar.button("تنفيذ التحويل ✅", use_container_width=True):
             if t_amount > 0 and wallet_from != wallet_to:
                 with get_connection() as conn:
                     conn.autocommit = True
                     with conn.cursor() as c:
-                        c.execute("INSERT INTO transfers (date, from_wallet, to_wallet, amount) VALUES (%s, %s, %s, %s)", 
+                        c.execute("INSERT INTO transfers (date, from_wallet, to_wallet, amount) VALUES (%s, %s, %s, %s)",
                                   (t_date.strftime("%Y-%m-%d"), wallet_from, wallet_to, t_amount))
                 st.sidebar.success("تم نقل الرصيد بنجاح!")
                 st.rerun()
@@ -193,7 +334,7 @@ if st.session_state["role"] == "admin":
                 with get_connection() as conn:
                     conn.autocommit = True
                     with conn.cursor() as c:
-                        c.execute("INSERT INTO debts (date, person, amount, type, description) VALUES (%s, %s, %s, %s, %s)", 
+                        c.execute("INSERT INTO debts (date, person, amount, type, description) VALUES (%s, %s, %s, %s, %s)",
                                   (d_date.strftime("%Y-%m-%d"), d_person, d_amount, d_type, d_desc))
                 st.rerun()
 
@@ -211,7 +352,7 @@ if st.session_state["role"] == "admin":
 
     elif operation == "✏️ تعديل وحذف":
         edit_action = st.sidebar.radio("اختر العملية:", ["تعديل مصروف", "تعديل رصيد", "حذف مصروف", "حذف رصيد", "حذف تحويل"])
-        
+
         if edit_action == "تعديل مصروف" and not df_exp.empty:
             exp_id = st.sidebar.selectbox("اختر المصروف للتعديل:", df_exp['id'].tolist(), format_func=lambda x: f"{df_exp[df_exp['id']==x]['amount'].iloc[0]} ج - {df_exp[df_exp['id']==x]['category'].iloc[0]}")
             selected_exp = df_exp[df_exp['id'] == exp_id].iloc[0]
@@ -250,7 +391,7 @@ if st.session_state["role"] == "admin":
                     conn.autocommit = True
                     with conn.cursor() as c: c.execute("DELETE FROM expenses WHERE id=%s", (del_id,))
                 st.rerun()
-                
+
         elif edit_action == "حذف رصيد" and not df_inc.empty:
             del_id = st.sidebar.selectbox("اختر الرصيد للإلغاء:", df_inc['id'].tolist(), format_func=lambda x: f"{df_inc[df_inc['id']==x]['amount'].iloc[0]} ج - {df_inc[df_inc['id']==x]['description'].iloc[0]}")
             if st.sidebar.button("🗑️ حذف الرصيد نهائياً", use_container_width=True):
@@ -258,8 +399,7 @@ if st.session_state["role"] == "admin":
                     conn.autocommit = True
                     with conn.cursor() as c: c.execute("DELETE FROM income WHERE id=%s", (del_id,))
                 st.rerun()
-                
-        # إلغاء تحويل
+
         elif edit_action == "حذف تحويل" and not df_transfers.empty:
             del_id = st.sidebar.selectbox("اختر التحويل للإلغاء:", df_transfers['id'].tolist(), format_func=lambda x: f"{df_transfers[df_transfers['id']==x]['amount'].iloc[0]} ج (من {df_transfers[df_transfers['id']==x]['from_wallet'].iloc[0]} لـ {df_transfers[df_transfers['id']==x]['to_wallet'].iloc[0]})")
             if st.sidebar.button("🗑️ حذف التحويل", use_container_width=True):
@@ -277,28 +417,35 @@ else:
     st.sidebar.info("👁️ تتصفح كضيف (قراءة فقط).")
 
 # ==========================================
-#        المحفظة العامة والفلترة (تم التحديث للتحويلات)
+#        المحفظة العامة والفلترة
 # ==========================================
 def get_balance(wallet_name):
-    # حساب الرصيد المضاف
     inc = df_inc[df_inc['wallet'] == wallet_name]['amount'].sum() if not df_inc.empty and 'wallet' in df_inc.columns else 0
-    # حساب المصاريف المخصومة
     exp = df_exp[df_exp['wallet'] == wallet_name]['amount'].sum() if not df_exp.empty and 'wallet' in df_exp.columns else 0
-    
-    # حساب التحويلات (طرح اللي طالع من المحفظة، وجمع اللي داخل ليها)
     trans_out = df_transfers[df_transfers['from_wallet'] == wallet_name]['amount'].sum() if not df_transfers.empty else 0
     trans_in = df_transfers[df_transfers['to_wallet'] == wallet_name]['amount'].sum() if not df_transfers.empty else 0
-    
     return inc - exp + trans_in - trans_out
 
-total_bal_all = get_balance('نقدي') + get_balance('فيزا') + get_balance('فودافون كاش')
+bal_cash = get_balance('نقدي')
+bal_visa = get_balance('فيزا')
+bal_voda = get_balance('فودافون كاش')
+total_bal_all = bal_cash + bal_visa + bal_voda
 
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("💰 الرصيد الكلي", f"{total_bal_all:.2f} ج.م")
-c2.metric("💵 كاش", f"{get_balance('نقدي'):.2f} ج.م")
-c3.metric("💳 فيزا", f"{get_balance('فيزا'):.2f} ج.م")
-c4.metric("📱 فودافون كاش", f"{get_balance('فودافون كاش'):.2f} ج.م")
-st.markdown("---")
+def wallet_html(name, icon, val):
+    cls = "w-val neg" if val < 0 else "w-val"
+    return f'<div class="hero-wallet"><div class="w-name">{icon} {name}</div><div class="{cls}">{val:,.2f} ج.م</div></div>'
+
+st.markdown(
+    f'<div class="hero">'
+    f'<div class="hero-label">الرصيد الكلي</div>'
+    f'<div class="hero-amount">{total_bal_all:,.2f}<span>ج.م</span></div>'
+    f'<div class="hero-wallets">'
+    f'{wallet_html("كاش", "💵", bal_cash)}'
+    f'{wallet_html("فيزا", "💳", bal_visa)}'
+    f'{wallet_html("فودافون كاش", "📱", bal_voda)}'
+    f'</div></div>',
+    unsafe_allow_html=True
+)
 
 if not df_exp.empty and 'date' in df_exp.columns:
     df_exp['month_year'] = pd.to_datetime(df_exp['date']).dt.strftime('%Y-%m')
@@ -311,7 +458,6 @@ selected_month = st.selectbox("📅 فلترة البيانات حسب الشه�
 df_exp_view = df_exp if selected_month == "كل الشهور" or df_exp.empty else df_exp[df_exp['month_year'] == selected_month]
 total_exp_view = df_exp_view['amount'].sum() if not df_exp_view.empty and 'amount' in df_exp_view.columns else 0
 
-# حساب المتوسط بناءً على اختيارك
 if not df_exp_view.empty and 'category' in df_exp_view.columns:
     if "excluded_categories" in locals() and excluded_categories:
         df_daily_exp = df_exp_view[~df_exp_view['category'].isin(excluded_categories)]
@@ -322,6 +468,9 @@ if not df_exp_view.empty and 'category' in df_exp_view.columns:
     avg_per_day = total_daily_exp / unique_days if unique_days > 0 else 0
 else:
     avg_per_day = 0
+
+# ألوان الرسوم البيانية
+CHART_COLORS = ["#0E7C7B", "#1B9E6B", "#E0A526", "#D1495B", "#5B7FA6", "#8A6FB0", "#7B8F91", "#C27C4E"]
 
 # ==========================================
 #                التابات
@@ -334,25 +483,84 @@ else:
     tab_exp, tab_inc = tabs
 
 with tab_exp:
+    st.markdown("<div style='height:.5rem'></div>", unsafe_allow_html=True)
     c_m1, c_m2 = st.columns(2)
-    c_m1.metric(f"💸 إجمالي مصاريف ({selected_month})", f"{total_exp_view:.2f} ج.م")
-    c_m2.metric("📊 متوسط الصرف اليومي المخصص", f"{avg_per_day:.2f} ج.م")
-    
+    c_m1.metric(f"💸 إجمالي مصاريف ({selected_month})", f"{total_exp_view:,.2f} ج.م")
+    c_m2.metric("📊 متوسط الصرف اليومي المخصص", f"{avg_per_day:,.2f} ج.م")
+
     if not df_exp_view.empty:
+        cat_group = df_exp_view.groupby('category')['amount'].sum().reset_index().sort_values('amount', ascending=False)
+
+        st.markdown("<div style='height:.75rem'></div>", unsafe_allow_html=True)
+        col_a, col_b = st.columns([3, 2])
+
+        with col_a:
+            st.subheader("المصاريف حسب القسم")
+            bar = (
+                alt.Chart(cat_group)
+                .mark_bar(cornerRadiusEnd=6, color="#0E7C7B", size=22)
+                .encode(
+                    y=alt.Y('category:N', sort='-x', title=None, axis=alt.Axis(labelFontSize=13, domain=False, ticks=False)),
+                    x=alt.X('amount:Q', title=None, axis=alt.Axis(grid=True, gridColor="#E6EDED", domain=False, ticks=False)),
+                    tooltip=[alt.Tooltip('category:N', title='القسم'), alt.Tooltip('amount:Q', title='المبلغ', format=',.2f')]
+                )
+                .properties(height=max(220, 38 * len(cat_group)))
+                .configure_view(strokeWidth=0)
+                .configure(background="transparent")
+            )
+            st.altair_chart(bar, use_container_width=True)
+
+        with col_b:
+            st.subheader("توزيع المصاريف")
+            donut = (
+                alt.Chart(cat_group)
+                .mark_arc(innerRadius=62, outerRadius=105, stroke="#F2F5F5", strokeWidth=2)
+                .encode(
+                    theta=alt.Theta('amount:Q'),
+                    color=alt.Color('category:N', scale=alt.Scale(range=CHART_COLORS),
+                                    legend=alt.Legend(title=None, orient="bottom", labelFontSize=12)),
+                    tooltip=[alt.Tooltip('category:N', title='القسم'), alt.Tooltip('amount:Q', title='المبلغ', format=',.2f')]
+                )
+                .properties(height=290)
+                .configure_view(strokeWidth=0)
+                .configure(background="transparent")
+            )
+            st.altair_chart(donut, use_container_width=True)
+
+        # تقدّم الميزانيات
+        if not df_budgets.empty and 'limit_amount' in df_budgets.columns:
+            spent_map = cat_group.set_index('category')['amount'].to_dict()
+            budget_rows = ""
+            for _, b in df_budgets.iterrows():
+                limit = float(b['limit_amount'] or 0)
+                if limit <= 0:
+                    continue
+                spent = float(spent_map.get(b['category'], 0))
+                pct = spent / limit * 100
+                cls = "bad" if pct >= 100 else ("warn" if pct >= 80 else "")
+                budget_rows += (
+                    f'<div class="budget"><div class="b-head"><span>{b["category"]}</span>'
+                    f'<span class="b-nums">{spent:,.0f} / {limit:,.0f} ج.م ({pct:.0f}%)</span></div>'
+                    f'<div class="b-track"><div class="b-fill {cls}" style="width:{min(pct, 100):.0f}%"></div></div></div>'
+                )
+            if budget_rows:
+                st.subheader("الميزانيات")
+                st.markdown(budget_rows, unsafe_allow_html=True)
+
+        st.subheader("سجل المصاريف")
         buffer = io.BytesIO()
         with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
             df_exp_view.drop(columns=['month_year', 'id'], errors='ignore').to_excel(writer, sheet_name='المصاريف', index=False)
         st.download_button(label="📥 تحميل المصاريف (شيت إكسيل)", data=buffer.getvalue(), file_name=f"expenses_{selected_month}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-        st.markdown("---")
-        
-        cat_group = df_exp_view.groupby('category')['amount'].sum().reset_index()
-        st.bar_chart(cat_group.set_index('category'))
         st.dataframe(df_exp_view.drop(columns=['id', 'month_year'], errors='ignore'), use_container_width=True)
+    else:
+        st.info("مفيش مصاريف في الفترة دي. أضف أول مصروف من القائمة الجانبية.")
 
 if st.session_state["role"] == "admin":
     with tab_plan:
-        st.subheader("إدارة الديون والأهداف")
+        st.subheader("الديون")
         st.dataframe(df_debts.drop(columns=['id'], errors='ignore'), use_container_width=True)
+        st.subheader("أهداف التوفير")
         st.dataframe(df_savings.drop(columns=['id'], errors='ignore'), use_container_width=True)
 
     with tab_ai:
@@ -362,11 +570,11 @@ if st.session_state["role"] == "admin":
 
         if "chat_history" not in st.session_state:
             st.session_state.chat_history = []
-            
+
         for msg in st.session_state.chat_history:
             with st.chat_message(msg["role"]):
                 st.write(msg["content"])
-                
+
         prompt = st.chat_input("اكتب سؤالك هنا..")
         if prompt:
             st.session_state.chat_history.append({"role": "user", "content": prompt})
@@ -393,8 +601,9 @@ with tab_inc:
     st.subheader("سجل الأرصدة المضافة")
     if not df_inc.empty:
         st.dataframe(df_inc.drop(columns=['id', 'month_year'], errors='ignore'), use_container_width=True)
-    
-    # عرض سجل التحويلات الجديد
+    else:
+        st.info("لم تضف أي رصيد بعد.")
+
     st.markdown("---")
     st.subheader("🔄 سجل التحويلات بين المحافظ")
     if not df_transfers.empty:
