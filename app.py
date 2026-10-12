@@ -3,6 +3,7 @@ import pandas as pd
 import altair as alt
 import psycopg2
 from datetime import datetime
+from html import escape
 import io
 import warnings
 import urllib.request
@@ -13,141 +14,187 @@ warnings.filterwarnings('ignore')
 st.set_page_config(page_title="النظام المالي المتكامل", page_icon="💎", layout="wide")
 
 # ==========================================
-#                 التصميم (CSS)
+#          الثيم (داكن / فاتح)
 # ==========================================
-# الألوان:  حبر #0F2A2E  |  تيل #0E7C7B  |  خلفية #F2F5F5  |  سطح #FFFFFF
-#           أخضر #1B9E6B  |  كهرماني #E0A526  |  أحمر #D1495B
-CUSTOM_CSS = """
-<style>
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap');
+DARK = dict(bg="#0B0D17", surface="#141829", surface2="#1B2038", line="#262C4A",
+            text="#E8EAF6", muted="#8D94B8", accent="#7C5CFF", accent2="#22D3EE",
+            ok="#34D399", warn="#FBBF24", bad="#FB7185", shadow="0 10px 30px rgba(0,0,0,.40)")
+LIGHT = dict(bg="#F4F3FB", surface="#FFFFFF", surface2="#EEECF9", line="#E1DEF2",
+             text="#1B1740", muted="#6A6791", accent="#6A47F5", accent2="#0891B2",
+             ok="#059669", warn="#D97706", bad="#E11D48", shadow="0 8px 24px rgba(40,30,100,.08)")
 
-:root{
-    --ink:#0F2A2E; --ink-soft:#5B7074; --teal:#0E7C7B; --teal-dark:#0A5F5E;
-    --bg:#F2F5F5; --surface:#FFFFFF; --line:#E0E8E8;
-    --ok:#1B9E6B; --warn:#E0A526; --bad:#D1495B;
-}
+st.session_state.setdefault("dark_mode", True)
+T = DARK if st.session_state["dark_mode"] else LIGHT
+CHART_COLORS = ["#7C5CFF", "#22D3EE", "#34D399", "#FBBF24", "#FB7185", "#A78BFA", "#38BDF8", "#F97316"]
+
+THEME_VARS = (
+    ":root{"
+    f"--bg:{T['bg']};--surface:{T['surface']};--surface2:{T['surface2']};--line:{T['line']};"
+    f"--text:{T['text']};--muted:{T['muted']};--accent:{T['accent']};--accent2:{T['accent2']};"
+    f"--ok:{T['ok']};--warn:{T['warn']};--bad:{T['bad']};--shadow:{T['shadow']};"
+    "}"
+)
+
+STATIC_CSS = """
+@import url('https://fonts.googleapis.com/css2?family=Readex+Pro:wght@300;400;500;600;700&display=swap');
 
 /* الخط والاتجاه */
 .stApp, .stApp p, .stApp label, .stApp input, .stApp textarea, .stApp button,
-.stApp h1, .stApp h2, .stApp h3, .stApp h4,
+.stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp li,
 [data-testid="stMarkdownContainer"], [data-testid="stMetricValue"], [data-testid="stMetricLabel"]{
-    font-family:'IBM Plex Sans Arabic', sans-serif !important;
+    font-family:'Readex Pro', sans-serif !important;
 }
-.stApp{ background:var(--bg); color:var(--ink); }
+.stApp{ background:var(--bg); }
+.stApp p, .stApp label, .stApp li, [data-testid="stMarkdownContainer"], .stApp h1, .stApp h2, .stApp h3, .stApp h4{ color:var(--text); }
+[data-testid="stCaptionContainer"], [data-testid="stCaptionContainer"] p{ color:var(--muted) !important; }
 [data-testid="stMain"], [data-testid="stSidebar"]{ direction:rtl; text-align:right; }
 [data-testid="stHeader"]{ background:transparent; }
+[data-testid="stHeader"] *{ color:var(--muted); }
 #MainMenu, footer{ visibility:hidden; }
-.block-container{ padding-top:2rem; padding-bottom:3rem; max-width:1200px; }
-
-/* العناوين */
-h1{ font-weight:700 !important; letter-spacing:-0.01em; color:var(--ink); }
-h2, h3{ font-weight:600 !important; color:var(--ink); }
+.block-container{ padding-top:2rem; padding-bottom:3rem; max-width:1180px; }
+h1{ font-weight:600 !important; }
+h2, h3{ font-weight:500 !important; }
+hr{ border-color:var(--line) !important; }
 
 /* الشريط الجانبي */
-[data-testid="stSidebar"]{
-    background:#E8EFEF;
-    border-left:1px solid var(--line);
-}
-[data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3{
-    font-size:1.15rem; color:var(--ink);
-}
-[data-testid="stSidebar"] hr{ border-color:#D3DEDE; }
+[data-testid="stSidebar"]{ background:var(--surface); border-left:1px solid var(--line); }
+[data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3{ font-size:1.1rem; }
 
-/* حقول الإدخال */
-.stTextInput input, .stNumberInput input, .stDateInput input,
-div[data-baseweb="select"] > div{
-    background:var(--surface) !important;
-    border:1px solid var(--line) !important;
-    border-radius:10px !important;
-    color:var(--ink) !important;
+/* الحقول */
+.stTextInput input, .stNumberInput input, .stDateInput input, .stTextArea textarea,
+div[data-baseweb="select"] > div, div[data-baseweb="input"], div[data-baseweb="base-input"]{
+    background:var(--surface2) !important;
+    border-color:var(--line) !important;
+    border-radius:12px !important;
+    color:var(--text) !important;
 }
 .stTextInput input:focus, .stNumberInput input:focus, .stDateInput input:focus{
-    border-color:var(--teal) !important;
-    box-shadow:0 0 0 3px rgba(14,124,123,.15) !important;
+    box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent) !important;
 }
+div[data-baseweb="select"] *{ color:var(--text) !important; }
+.stNumberInput button{ background:var(--surface2) !important; color:var(--text) !important; border-color:var(--line) !important; }
+span[data-baseweb="tag"]{ background:var(--accent) !important; color:#fff !important; border-radius:8px; }
+span[data-baseweb="tag"] *{ color:#fff !important; }
+div[data-baseweb="popover"] > div, div[data-baseweb="popover"] ul, div[data-baseweb="menu"], div[data-baseweb="calendar"]{
+    background:var(--surface2) !important; color:var(--text) !important; border-radius:12px;
+}
+div[data-baseweb="popover"] li, div[data-baseweb="calendar"] *{ color:var(--text) !important; }
+div[data-baseweb="popover"] li:hover{ background:var(--line) !important; }
+[data-testid="stCheckbox"] span, [data-testid="stRadio"] label p{ color:var(--text) !important; }
 
 /* الأزرار */
 .stButton > button, .stDownloadButton > button, [data-testid="stFormSubmitButton"] > button{
-    background:var(--teal);
-    color:#fff;
+    background:linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 70%, var(--accent2)));
+    color:#fff !important;
     border:none;
-    border-radius:10px;
+    border-radius:12px;
     padding:.55rem 1.1rem;
-    font-weight:600;
-    transition:background .15s ease;
+    font-weight:500;
+    transition:filter .15s ease, transform .1s ease;
 }
-.stButton > button:hover, .stDownloadButton > button:hover, [data-testid="stFormSubmitButton"] > button:hover{
-    background:var(--teal-dark); color:#fff;
-}
-.stButton > button:focus-visible, .stDownloadButton > button:focus-visible{
-    outline:3px solid rgba(14,124,123,.35); outline-offset:2px;
-}
+.stButton > button:hover, .stDownloadButton > button:hover, [data-testid="stFormSubmitButton"] > button:hover{ filter:brightness(1.1); color:#fff; }
+.stButton > button:active, .stDownloadButton > button:active{ transform:scale(.98); }
+.stButton > button:focus-visible, .stDownloadButton > button:focus-visible{ outline:3px solid var(--accent2); outline-offset:2px; }
 
-/* بطاقات المؤشرات */
-[data-testid="stMetric"]{
-    background:var(--surface);
-    border:1px solid var(--line);
-    border-radius:14px;
-    padding:1rem 1.25rem;
+/* التابات (أقراص) */
+.stTabs [data-baseweb="tab-list"]{ gap:.4rem; background:var(--surface); border:1px solid var(--line); border-radius:999px; padding:.3rem; width:fit-content; max-width:100%; overflow-x:auto; }
+.stTabs [data-baseweb="tab"]{ border-radius:999px; padding:.45rem 1.1rem; color:var(--muted); height:auto; }
+.stTabs [data-baseweb="tab"] p{ color:inherit !important; font-weight:500; }
+.stTabs [aria-selected="true"]{ background:var(--accent); color:#fff; }
+.stTabs [data-baseweb="tab-highlight"], .stTabs [data-baseweb="tab-border"]{ display:none; }
+
+/* المؤشرات */
+[data-testid="stMetric"]{ background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:1rem 1.25rem; box-shadow:var(--shadow); }
+[data-testid="stMetricLabel"] p{ color:var(--muted) !important; font-weight:400; }
+[data-testid="stMetricValue"]{ font-weight:600; font-size:1.6rem; color:var(--text); }
+
+/* التنبيهات والنماذج والشات */
+[data-testid="stAlert"]{ background:var(--surface2) !important; border:1px solid var(--line); border-radius:14px; }
+[data-testid="stAlert"] *{ color:var(--text) !important; }
+[data-testid="stForm"]{ background:var(--surface); border:1px solid var(--line); border-radius:18px; padding:1.5rem; box-shadow:var(--shadow); }
+[data-testid="stChatMessage"]{ background:var(--surface); border:1px solid var(--line); border-radius:16px; }
+[data-testid="stChatInput"], [data-testid="stChatInput"] textarea{ background:var(--surface2) !important; color:var(--text) !important; border-radius:14px; }
+
+/* الإجمالي وبطاقات المحافظ */
+.total{ display:flex; align-items:baseline; gap:1rem; flex-wrap:wrap; margin:.25rem 0 1rem; }
+.total .t-label{ color:var(--muted); font-size:.95rem; }
+.total .t-amt{ font-size:3rem; font-weight:600; letter-spacing:-0.02em; line-height:1.1; color:var(--text); }
+.total .t-amt small{ font-size:1.05rem; font-weight:400; color:var(--muted); margin-right:.4rem; }
+.total .t-amt.neg{ color:var(--bad); }
+.wallet-row{ display:grid; grid-template-columns:repeat(3, 1fr); gap:1rem; margin-bottom:1.5rem; }
+.wcard{ position:relative; border-radius:20px; padding:1.1rem 1.3rem 1.3rem; color:#fff; min-height:132px; overflow:hidden; box-shadow:var(--shadow); }
+.wcard::before{ content:""; position:absolute; width:180px; height:180px; border-radius:50%; background:rgba(255,255,255,.10); left:-50px; top:-70px; }
+.wcard .wc-top{ display:flex; justify-content:space-between; align-items:center; font-weight:500; position:relative; }
+.wcard .chip{ width:34px; height:24px; border-radius:6px; background:linear-gradient(135deg,#F5D98B,#C9A24B); opacity:.9; }
+.wcard .wc-amt{ position:relative; margin-top:1.6rem; font-size:1.65rem; font-weight:600; letter-spacing:-0.01em; }
+.wcard .wc-amt small{ font-size:.85rem; font-weight:400; opacity:.8; margin-right:.3rem; }
+.w-cash{ background:linear-gradient(135deg,#10B981,#0E7490); }
+.w-visa{ background:linear-gradient(135deg,#7C5CFF,#4338CA); }
+.w-voda{ background:linear-gradient(135deg,#EF4444,#9F1239); }
+
+/* ترتيب الأقسام */
+.rank{ background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:.4rem 1.1rem; }
+.rank-row{ padding:.75rem 0; border-top:1px solid var(--line); }
+.rank-row:first-child{ border-top:none; }
+.rank-head{ display:flex; justify-content:space-between; font-size:.95rem; margin-bottom:.45rem; }
+.rank-head .r-val{ color:var(--muted); font-variant-numeric:tabular-nums; }
+.bar-track{ height:7px; background:var(--surface2); border-radius:99px; overflow:hidden; }
+.bar-fill{ height:100%; border-radius:99px; }
+.bar-fill.ok{ background:var(--ok); } .bar-fill.warn{ background:var(--warn); } .bar-fill.bad{ background:var(--bad); }
+
+/* الجداول (متوافقة مع الوضعين) */
+.tbl-wrap{ max-height:460px; overflow:auto; border:1px solid var(--line); border-radius:16px; background:var(--surface); }
+.tbl{ width:100%; border-collapse:collapse; font-size:.92rem; }
+.tbl th{ position:sticky; top:0; background:var(--surface2); color:var(--muted); font-weight:500; text-align:right; padding:.7rem .95rem; white-space:nowrap; }
+.tbl td{ padding:.65rem .95rem; border-top:1px solid var(--line); color:var(--text); white-space:nowrap; }
+.tbl td.num{ font-variant-numeric:tabular-nums; font-weight:500; }
+.tbl tr:hover td{ background:var(--surface2); }
+.tbl-empty{ color:var(--muted); padding:1.2rem; text-align:center; }
+
+@media (max-width:760px){
+    .wallet-row{ grid-template-columns:1fr; }
+    .total .t-amt{ font-size:2.2rem; }
 }
-[data-testid="stMetricLabel"]{ color:var(--ink-soft); font-weight:500; }
-[data-testid="stMetricValue"]{ font-weight:600; font-size:1.6rem; color:var(--ink); }
-
-/* بطاقة الرصيد الرئيسية */
-.hero{
-    background:linear-gradient(135deg,#0F2A2E 0%,#13474A 100%);
-    color:#fff;
-    border-radius:20px;
-    padding:1.75rem 2rem;
-    margin-bottom:1.25rem;
-}
-.hero-label{ font-size:.95rem; color:#A9C4C5; margin-bottom:.35rem; }
-.hero-amount{ font-size:2.8rem; font-weight:700; line-height:1.1; letter-spacing:-0.02em; }
-.hero-amount span{ font-size:1.1rem; font-weight:400; color:#A9C4C5; margin-right:.4rem; }
-.hero-wallets{
-    display:flex; flex-wrap:wrap; gap:1rem 2.5rem;
-    margin-top:1.4rem; padding-top:1.2rem;
-    border-top:1px solid rgba(255,255,255,.14);
-}
-.hero-wallet .w-name{ font-size:.85rem; color:#A9C4C5; }
-.hero-wallet .w-val{ font-size:1.25rem; font-weight:600; }
-.hero-wallet .w-val.neg{ color:#FF9AA6; }
-
-/* الميزانية */
-.budget{ background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:.8rem 1rem; margin-bottom:.6rem; }
-.b-head{ display:flex; justify-content:space-between; font-size:.92rem; margin-bottom:.45rem; }
-.b-head .b-nums{ color:var(--ink-soft); }
-.b-track{ height:8px; background:#E6EDED; border-radius:99px; overflow:hidden; }
-.b-fill{ height:100%; border-radius:99px; background:var(--ok); }
-.b-fill.warn{ background:var(--warn); }
-.b-fill.bad{ background:var(--bad); }
-
-/* التابات */
-.stTabs [data-baseweb="tab-list"]{ gap:.25rem; border-bottom:1px solid var(--line); }
-.stTabs [data-baseweb="tab"]{ padding:.6rem 1rem; color:var(--ink-soft); font-weight:500; }
-.stTabs [aria-selected="true"]{ color:var(--teal); }
-.stTabs [data-baseweb="tab-highlight"]{ background:var(--teal); height:3px; }
-
-/* الجداول والتنبيهات */
-[data-testid="stDataFrame"]{ border:1px solid var(--line); border-radius:12px; overflow:hidden; }
-[data-testid="stAlert"]{ border-radius:12px; }
-hr{ border-color:var(--line); }
-
-/* نموذج الدخول */
-[data-testid="stForm"]{
-    background:var(--surface);
-    border:1px solid var(--line);
-    border-radius:16px;
-    padding:1.5rem;
-}
-
-@media (max-width:640px){
-    .hero{ padding:1.25rem; }
-    .hero-amount{ font-size:2.1rem; }
-}
-</style>
 """
-st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
+st.markdown(f"<style>{THEME_VARS}{STATIC_CSS}</style>", unsafe_allow_html=True)
+
+# ---------- أدوات العرض ----------
+HEADERS = {"date": "التاريخ", "category": "القسم", "amount": "المبلغ", "description": "الوصف",
+           "wallet": "المحفظة", "person": "الشخص", "type": "النوع", "goal_name": "الهدف",
+           "target": "المطلوب", "saved": "المدخّر", "from_wallet": "من", "to_wallet": "إلى",
+           "timestamp": "الوقت", "username": "المستخدم", "ip_address": "IP",
+           "device_info": "الجهاز", "location": "الموقع"}
+NUM_COLS = {"amount", "target", "saved"}
+
+def render_table(df, max_rows=300):
+    df = df.drop(columns=['id', 'month_year'], errors='ignore')
+    if df.empty:
+        st.markdown('<div class="tbl-wrap"><div class="tbl-empty">لا توجد بيانات لعرضها.</div></div>', unsafe_allow_html=True)
+        return
+    df = df.head(max_rows)
+    head = "".join(f"<th>{escape(HEADERS.get(c, c))}</th>" for c in df.columns)
+    rows = ""
+    for _, r in df.iterrows():
+        cells = ""
+        for c in df.columns:
+            v = r[c]
+            if pd.isna(v):
+                txt, cls = "", ""
+            elif c in NUM_COLS:
+                txt, cls = f"{float(v):,.2f}", "num"
+            else:
+                txt, cls = escape(str(v)), ""
+            cells += f'<td class="{cls}">{txt}</td>'
+        rows += f"<tr>{cells}</tr>"
+    st.markdown(f'<div class="tbl-wrap"><table class="tbl"><thead><tr>{head}</tr></thead><tbody>{rows}</tbody></table></div>', unsafe_allow_html=True)
+
+def style_chart(chart, height):
+    return (chart.properties(height=height)
+            .configure(background="transparent")
+            .configure_view(strokeWidth=0)
+            .configure_axis(labelColor=T['muted'], titleColor=T['muted'], gridColor=T['line'],
+                            domainColor=T['line'], tickColor=T['line'], labelFontSize=12)
+            .configure_legend(labelColor=T['text'], titleColor=T['muted'], labelFontSize=12))
 
 # ==========================================
 #             نظام الأمان والاتصال
@@ -186,13 +233,14 @@ init_db()
 if not st.session_state["authenticated"]:
     _, mid, _ = st.columns([1, 1.2, 1])
     with mid:
-        st.markdown("<div style='height:8vh'></div>", unsafe_allow_html=True)
+        st.markdown("<div style='height:7vh'></div>", unsafe_allow_html=True)
         st.title("💎 تسجيل الدخول")
         st.caption("ادخل ببياناتك لمتابعة محافظك ومصاريفك.")
         with st.form("login_form"):
             username = st.text_input("اسم المستخدم")
             password = st.text_input("كلمة المرور", type="password")
             submitted = st.form_submit_button("دخول", use_container_width=True)
+        st.toggle("🌙 الوضع الداكن", key="dark_mode")
         if submitted:
             is_admin = (username == st.secrets.get("APP_USERNAME") and password == st.secrets.get("APP_PASSWORD"))
             is_guest = (username == st.secrets.get("GUEST_USERNAME") and password == st.secrets.get("GUEST_PASSWORD"))
@@ -225,6 +273,7 @@ if not st.session_state["authenticated"]:
 # ==========================================
 #         البرنامج الرئيسي
 # ==========================================
+st.sidebar.toggle("🌙 الوضع الداكن", key="dark_mode")
 st.sidebar.button("تسجيل الخروج 🚪", on_click=logout, use_container_width=True)
 st.sidebar.markdown("---")
 
@@ -408,7 +457,6 @@ if st.session_state["role"] == "admin":
                     with conn.cursor() as c: c.execute("DELETE FROM transfers WHERE id=%s", (del_id,))
                 st.rerun()
 
-    # --- التحكم في حساب المتوسط ---
     st.sidebar.markdown("---")
     st.sidebar.subheader("⚙️ إعدادات حساب المتوسط")
     excluded_categories = st.sidebar.multiselect("اختر البنود اللي مش عايزها تتحسب في المتوسط اليومي:", all_categories[:-1])
@@ -431,19 +479,18 @@ bal_visa = get_balance('فيزا')
 bal_voda = get_balance('فودافون كاش')
 total_bal_all = bal_cash + bal_visa + bal_voda
 
-def wallet_html(name, icon, val):
-    cls = "w-val neg" if val < 0 else "w-val"
-    return f'<div class="hero-wallet"><div class="w-name">{icon} {name}</div><div class="{cls}">{val:,.2f} ج.م</div></div>'
+def wcard(cls, label, icon, val):
+    return (f'<div class="wcard {cls}"><div class="wc-top"><span>{icon} {label}</span><span class="chip"></span></div>'
+            f'<div class="wc-amt">{val:,.2f}<small>ج.م</small></div></div>')
 
 st.markdown(
-    f'<div class="hero">'
-    f'<div class="hero-label">الرصيد الكلي</div>'
-    f'<div class="hero-amount">{total_bal_all:,.2f}<span>ج.م</span></div>'
-    f'<div class="hero-wallets">'
-    f'{wallet_html("كاش", "💵", bal_cash)}'
-    f'{wallet_html("فيزا", "💳", bal_visa)}'
-    f'{wallet_html("فودافون كاش", "📱", bal_voda)}'
-    f'</div></div>',
+    f'<div class="total"><span class="t-label">إجمالي رصيدك</span>'
+    f'<span class="t-amt {"neg" if total_bal_all < 0 else ""}">{total_bal_all:,.2f}<small>ج.م</small></span></div>'
+    f'<div class="wallet-row">'
+    f'{wcard("w-cash", "كاش", "💵", bal_cash)}'
+    f'{wcard("w-visa", "فيزا", "💳", bal_visa)}'
+    f'{wcard("w-voda", "فودافون كاش", "📱", bal_voda)}'
+    f'</div>',
     unsafe_allow_html=True
 )
 
@@ -469,9 +516,6 @@ if not df_exp_view.empty and 'category' in df_exp_view.columns:
 else:
     avg_per_day = 0
 
-# ألوان الرسوم البيانية
-CHART_COLORS = ["#0E7C7B", "#1B9E6B", "#E0A526", "#D1495B", "#5B7FA6", "#8A6FB0", "#7B8F91", "#C27C4E"]
-
 # ==========================================
 #                التابات
 # ==========================================
@@ -490,42 +534,54 @@ with tab_exp:
 
     if not df_exp_view.empty:
         cat_group = df_exp_view.groupby('category')['amount'].sum().reset_index().sort_values('amount', ascending=False)
+        daily = (df_exp_view.assign(d=pd.to_datetime(df_exp_view['date']))
+                 .groupby('d')['amount'].sum().reset_index().sort_values('d'))
 
         st.markdown("<div style='height:.75rem'></div>", unsafe_allow_html=True)
         col_a, col_b = st.columns([3, 2])
 
         with col_a:
-            st.subheader("المصاريف حسب القسم")
-            bar = (
-                alt.Chart(cat_group)
-                .mark_bar(cornerRadiusEnd=6, color="#0E7C7B", size=22)
-                .encode(
-                    y=alt.Y('category:N', sort='-x', title=None, axis=alt.Axis(labelFontSize=13, domain=False, ticks=False)),
-                    x=alt.X('amount:Q', title=None, axis=alt.Axis(grid=True, gridColor="#E6EDED", domain=False, ticks=False)),
-                    tooltip=[alt.Tooltip('category:N', title='القسم'), alt.Tooltip('amount:Q', title='المبلغ', format=',.2f')]
-                )
-                .properties(height=max(220, 38 * len(cat_group)))
-                .configure_view(strokeWidth=0)
-                .configure(background="transparent")
+            st.subheader("الصرف اليومي")
+            area = alt.Chart(daily).mark_area(
+                interpolate='monotone',
+                line=alt.OverlayMarkDef(color=T['accent'], strokeWidth=2.5),
+                point=alt.OverlayMarkDef(color=T['accent'], size=45),
+                color=alt.Gradient(
+                    gradient='linear',
+                    stops=[alt.GradientStop(color=T['accent'] + "88", offset=0),
+                           alt.GradientStop(color=T['accent'] + "00", offset=1)],
+                    x1=1, x2=1, y1=0, y2=1)
+            ).encode(
+                x=alt.X('d:T', title=None, axis=alt.Axis(format='%m/%d', grid=False)),
+                y=alt.Y('amount:Q', title=None, axis=alt.Axis(domain=False, ticks=False)),
+                tooltip=[alt.Tooltip('d:T', title='اليوم', format='%Y-%m-%d'),
+                         alt.Tooltip('amount:Q', title='المبلغ', format=',.2f')]
             )
-            st.altair_chart(bar, use_container_width=True)
+            st.altair_chart(style_chart(area, 300), use_container_width=True)
 
         with col_b:
             st.subheader("توزيع المصاريف")
-            donut = (
-                alt.Chart(cat_group)
-                .mark_arc(innerRadius=62, outerRadius=105, stroke="#F2F5F5", strokeWidth=2)
-                .encode(
-                    theta=alt.Theta('amount:Q'),
-                    color=alt.Color('category:N', scale=alt.Scale(range=CHART_COLORS),
-                                    legend=alt.Legend(title=None, orient="bottom", labelFontSize=12)),
-                    tooltip=[alt.Tooltip('category:N', title='القسم'), alt.Tooltip('amount:Q', title='المبلغ', format=',.2f')]
-                )
-                .properties(height=290)
-                .configure_view(strokeWidth=0)
-                .configure(background="transparent")
+            donut = alt.Chart(cat_group).mark_arc(innerRadius=66, outerRadius=108, stroke=T['bg'], strokeWidth=2).encode(
+                theta=alt.Theta('amount:Q'),
+                color=alt.Color('category:N', scale=alt.Scale(range=CHART_COLORS),
+                                legend=alt.Legend(title=None, orient="bottom")),
+                tooltip=[alt.Tooltip('category:N', title='القسم'), alt.Tooltip('amount:Q', title='المبلغ', format=',.2f')]
             )
-            st.altair_chart(donut, use_container_width=True)
+            st.altair_chart(style_chart(donut, 300), use_container_width=True)
+
+        # ترتيب الأقسام
+        st.subheader("الأقسام الأعلى صرفاً")
+        top = float(cat_group['amount'].max()) or 1.0
+        rank_rows = ""
+        for i, r in enumerate(cat_group.itertuples()):
+            color = CHART_COLORS[i % len(CHART_COLORS)]
+            share = r.amount / total_exp_view * 100 if total_exp_view else 0
+            rank_rows += (
+                f'<div class="rank-row"><div class="rank-head"><span>{escape(str(r.category))}</span>'
+                f'<span class="r-val">{r.amount:,.2f} ج.م · {share:.0f}%</span></div>'
+                f'<div class="bar-track"><div class="bar-fill" style="width:{r.amount / top * 100:.0f}%;background:{color}"></div></div></div>'
+            )
+        st.markdown(f'<div class="rank">{rank_rows}</div>', unsafe_allow_html=True)
 
         # تقدّم الميزانيات
         if not df_budgets.empty and 'limit_amount' in df_budgets.columns:
@@ -537,31 +593,32 @@ with tab_exp:
                     continue
                 spent = float(spent_map.get(b['category'], 0))
                 pct = spent / limit * 100
-                cls = "bad" if pct >= 100 else ("warn" if pct >= 80 else "")
+                cls = "bad" if pct >= 100 else ("warn" if pct >= 80 else "ok")
                 budget_rows += (
-                    f'<div class="budget"><div class="b-head"><span>{b["category"]}</span>'
-                    f'<span class="b-nums">{spent:,.0f} / {limit:,.0f} ج.م ({pct:.0f}%)</span></div>'
-                    f'<div class="b-track"><div class="b-fill {cls}" style="width:{min(pct, 100):.0f}%"></div></div></div>'
+                    f'<div class="rank-row"><div class="rank-head"><span>{escape(str(b["category"]))}</span>'
+                    f'<span class="r-val">{spent:,.0f} / {limit:,.0f} ج.م ({pct:.0f}%)</span></div>'
+                    f'<div class="bar-track"><div class="bar-fill {cls}" style="width:{min(pct, 100):.0f}%"></div></div></div>'
                 )
             if budget_rows:
                 st.subheader("الميزانيات")
-                st.markdown(budget_rows, unsafe_allow_html=True)
+                st.markdown(f'<div class="rank">{budget_rows}</div>', unsafe_allow_html=True)
 
         st.subheader("سجل المصاريف")
         buffer = io.BytesIO()
         with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
             df_exp_view.drop(columns=['month_year', 'id'], errors='ignore').to_excel(writer, sheet_name='المصاريف', index=False)
         st.download_button(label="📥 تحميل المصاريف (شيت إكسيل)", data=buffer.getvalue(), file_name=f"expenses_{selected_month}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-        st.dataframe(df_exp_view.drop(columns=['id', 'month_year'], errors='ignore'), use_container_width=True)
+        st.markdown("<div style='height:.5rem'></div>", unsafe_allow_html=True)
+        render_table(df_exp_view)
     else:
         st.info("مفيش مصاريف في الفترة دي. أضف أول مصروف من القائمة الجانبية.")
 
 if st.session_state["role"] == "admin":
     with tab_plan:
         st.subheader("الديون")
-        st.dataframe(df_debts.drop(columns=['id'], errors='ignore'), use_container_width=True)
+        render_table(df_debts)
         st.subheader("أهداف التوفير")
-        st.dataframe(df_savings.drop(columns=['id'], errors='ignore'), use_container_width=True)
+        render_table(df_savings)
 
     with tab_ai:
         st.subheader("🤖 المستشار الخوارزمي - اسألني عن مصاريفك!")
@@ -593,20 +650,20 @@ if st.session_state["role"] == "admin":
     with tab_sec:
         st.subheader("🛡️ سجل الزيارات والأمان")
         if not df_logs.empty:
-            st.dataframe(df_logs.drop(columns=['id'], errors='ignore'), use_container_width=True)
+            render_table(df_logs)
         else:
             st.info("لا توجد زيارات مسجلة حتى الآن.")
 
 with tab_inc:
     st.subheader("سجل الأرصدة المضافة")
     if not df_inc.empty:
-        st.dataframe(df_inc.drop(columns=['id', 'month_year'], errors='ignore'), use_container_width=True)
+        render_table(df_inc)
     else:
         st.info("لم تضف أي رصيد بعد.")
 
     st.markdown("---")
     st.subheader("🔄 سجل التحويلات بين المحافظ")
     if not df_transfers.empty:
-        st.dataframe(df_transfers.drop(columns=['id'], errors='ignore'), use_container_width=True)
+        render_table(df_transfers)
     else:
         st.info("لا توجد عمليات تحويل مسجلة حتى الآن.")
