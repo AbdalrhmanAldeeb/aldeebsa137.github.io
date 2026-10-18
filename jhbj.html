@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Food Vocab Lab - A2</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800&family=Fraunces:opsz,wght@9..144,700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#14100e;--card:#1e1814;--sub:#17120f;--line:#322821;--pri:#f0a93b;--sec:#a98bd6;--acc:#4fb3b0;--ok:#86b76a;--bad:#e2574c;--tx:#f5efe6;--dim:#a99b8c;--glass:rgba(20,16,14,.8);--r:18px}
+[data-theme=light]{--bg:#eef2ec;--card:#fff;--sub:#f3f6f0;--line:#d9dfd2;--pri:#b7700a;--sec:#7a55b8;--acc:#17787a;--ok:#3d7a2a;--bad:#c23b30;--tx:#1d1a16;--dim:#6b6258;--glass:rgba(238,242,236,.85)}
+*{box-sizing:border-box;margin:0;padding:0;font-family:'Cairo','Segoe UI',system-ui,sans-serif}
+body{background:radial-gradient(900px 480px at 92% -10%,rgba(240,169,59,.14),transparent),radial-gradient(700px 420px at 0% 10%,rgba(169,139,214,.1),transparent),var(--bg);background-attachment:fixed;color:var(--tx);line-height:1.6;padding:16px;max-width:1120px;margin:0 auto}
+header{background:var(--card);border:1px solid var(--line);border-radius:24px;padding:22px;margin-bottom:16px;box-shadow:0 12px 40px rgba(0,0,0,.18)}
+.top{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:14px}
+h1{font-size:1.65rem;font-weight:800;color:var(--pri)}
+.sub{color:var(--dim);font-size:.92rem}
+.tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-top:16px}
+.stat{background:var(--sub);border:1px solid var(--line);border-radius:14px;padding:10px 12px;font-size:.85rem;color:var(--dim)}
+.stat b{display:block;font-size:1.35rem;color:var(--pri)}
+.bar{margin-top:14px;height:10px;background:var(--sub);border-radius:99px;overflow:hidden;border:1px solid var(--line)}
+.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--pri),var(--ok));transition:width .4s}
+nav{position:sticky;top:8px;z-index:20;display:flex;gap:6px;flex-wrap:wrap;justify-content:center;background:var(--glass);backdrop-filter:blur(12px);border:1px solid var(--line);padding:8px;border-radius:99px;margin-bottom:16px}
+.tab{background:transparent;color:var(--tx);border:0;padding:8px 16px;border-radius:99px;cursor:pointer;font-weight:600;font-size:.92rem;transition:.2s}
+.tab:hover{background:var(--sub)}
+.tab.on{background:var(--pri);color:#1a1411}
+.sec{display:none;background:var(--card);border:1px solid var(--line);border-radius:24px;padding:24px;box-shadow:0 10px 30px rgba(0,0,0,.15)}
+.sec.on{display:block;animation:pop .25s}
+.btn{padding:9px 16px;border-radius:99px;border:0;cursor:pointer;font-weight:700;font-size:.9rem;transition:.15s;display:inline-flex;align-items:center;gap:6px;color:#fff}
+.btn:hover{filter:brightness(1.12)}.btn:active{transform:scale(.96)}
+.b-p{background:var(--pri);color:#1a1411}.b-s{background:var(--sec)}.b-a{background:var(--acc)}.b-ok{background:var(--ok);color:#14100e}.b-bad{background:var(--bad)}.b-d{background:var(--sub);color:var(--tx);border:1px solid var(--line)}
+:focus-visible{outline:2px solid var(--pri);outline-offset:2px}
+input[type=text],select{background:var(--sub);color:var(--tx);border:1px solid var(--line);padding:10px 12px;border-radius:12px;font-size:.95rem}
+.row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:14px}
+.fc{background:var(--sub);border:2px solid var(--line);box-shadow:inset 0 0 0 7px var(--sub),inset 0 0 0 8px var(--line);border-radius:var(--r);padding:34px 20px;text-align:center;min-height:340px;display:flex;flex-direction:column;justify-content:center;align-items:center;position:relative}
+.fc.pop{animation:pop .28s}
+.bdg{position:absolute;top:16px;padding:3px 12px;border-radius:99px;font-size:.8rem}
+#fc-st{right:16px;background:var(--line);color:var(--pri)}
+#fc-cat{left:16px;background:rgba(169,139,214,.15);color:var(--sec);border:1px solid var(--sec)}
+.big{font-family:'Fraunces',Georgia,serif;font-size:2.9rem;font-weight:700;color:var(--pri);direction:ltr;margin:12px 0 4px}
+.en{direction:ltr;color:var(--dim);margin-bottom:10px}
+.hint{background:rgba(240,169,59,.12);border:1px dashed var(--pri);padding:10px 16px;border-radius:12px;margin:8px 0;max-width:92%;display:none}
+.rev{display:none;width:100%;border-top:1px solid var(--line);margin-top:14px;padding-top:14px;animation:pop .25s}
+.ar{font-size:1.7rem;color:var(--ok);font-weight:800;margin-bottom:8px}
+.exb{direction:ltr;background:var(--card);padding:10px 14px;border-radius:12px;font-style:italic;color:var(--dim);display:inline-flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center}
+.kb{text-align:center;margin-top:16px;color:var(--dim);font-size:.82rem}
+.kbd{background:var(--line);padding:1px 7px;border-radius:6px;font-family:monospace;color:var(--tx)}
+.story{direction:ltr;text-align:left;background:var(--sub);padding:24px;border-radius:var(--r);font-size:1.18rem;line-height:2.1;border:1px solid var(--line)}
+.sw{color:var(--pri);font-weight:700;border-bottom:2px dotted var(--pri);cursor:pointer;padding:1px 4px;border-radius:4px}
+.sw:hover{background:rgba(240,169,59,.18)}
+.cl{background:var(--card);color:var(--acc);border:1px solid var(--acc);padding:3px 8px;border-radius:8px;font-weight:700;direction:ltr}
+.pop-box{display:none;margin-top:14px;background:var(--sub);padding:16px;border-radius:14px;border-right:5px solid var(--pri)}
+.slots{direction:ltr;display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin:18px 0}
+.slot{width:34px;height:42px;background:var(--card);border:2px solid var(--line);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.25rem;font-weight:700;color:var(--pri)}
+.slot.sp{background:transparent;border:0;width:16px}
+.mg{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+.mc{display:flex;flex-direction:column;gap:10px}
+.mcard{background:var(--sub);border:2px solid var(--line);padding:13px;border-radius:14px;text-align:center;cursor:pointer;font-weight:700;transition:.2s}
+.mcard:hover{border-color:var(--pri)}.mcard.sel{border-color:var(--acc);background:rgba(79,179,176,.14)}.mcard.done{border-color:var(--ok);background:rgba(134,183,106,.18);opacity:.4;pointer-events:none}.mcard.shake{animation:shake .3s}
+.spk{background:var(--sub);padding:22px;border-radius:var(--r);border:1px solid var(--line);margin-bottom:14px}
+.mic{display:none;margin-top:10px;padding:10px;border-radius:12px;background:var(--card)}
+.qo{display:grid;grid-template-columns:1fr 1fr;gap:12px;direction:ltr;margin-top:18px}
+.qopt{background:var(--card);color:var(--tx);border:2px solid var(--line);padding:14px;border-radius:14px;font-size:1.05rem;cursor:pointer;text-align:left;transition:.15s}
+.qopt:hover:not(:disabled){border-color:var(--pri)}.qopt.c{background:var(--ok);color:#14100e;border-color:var(--ok);font-weight:700}.qopt.w{background:var(--bad);color:#fff;border-color:var(--bad)}
+.dg{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px;margin-top:18px}
+.di{background:var(--sub);padding:16px;border-radius:16px;border:1px solid var(--line)}
+.di.m{border-right:5px solid var(--ok)}
+#toasts{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:1000;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.toast{background:var(--card);padding:10px 18px;border-radius:99px;border:1px solid var(--line);animation:pop .25s;box-shadow:0 8px 24px rgba(0,0,0,.3)}
+.toast.ok{border-color:var(--ok)}.toast.bad{border-color:var(--bad)}
+.cf{position:fixed;top:-14px;width:8px;height:14px;z-index:999;animation:fall 2.2s ease-in forwards;pointer-events:none}
+.speaking-indicator{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--ok);margin-left:6px;animation:pulse .8s infinite alternate}
+@keyframes pulse{from{transform:scale(.8);opacity:.5}to{transform:scale(1.3);opacity:1}}
+@keyframes fall{to{transform:translate(var(--dx),108vh) rotate(720deg)}}
+@keyframes pop{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes shake{25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+@media(max-width:650px){.qo,.mg{grid-template-columns:1fr}.big{font-size:2.1rem}nav{border-radius:18px}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<header>
+ <div class="top">
+  <div>
+   <h1>🚀 مختبر إتقان كلمات الطعام والشراب (A2)</h1>
+   <p class="sub">حفظ + إملاء + نطق بشري طبيعي + ألعاب سرعة + تصدير لبرنامج Anki</p>
+  </div>
+  <div class="tools">
+   <select id="voice-sel" title="اختر محرك الصوت" onchange="setVoice(this.value)"></select>
+   <button class="btn b-d" onclick="speakWord('Delicious food is rich in flavor!')">🔈 جرّب الصوت</button>
+   <button class="btn b-bad" id="btn-stop-audio" style="display:none;padding:9px 12px" onclick="stopAllAudio()">⏹️ إيقاف</button>
+   <label class="btn b-d" style="cursor:pointer"><input type="checkbox" id="slow"> 🐢 بطيء</label>
+   <label class="btn b-d" style="cursor:pointer"><input type="checkbox" id="auto" onchange="autoPlay=this.checked;localStorage.setItem('fvAuto',+autoPlay)"> ▶️ تلقائي</label>
+   <button class="btn b-d" onclick="toggleTheme()">🌗</button>
+   <button class="btn b-d" id="btn-mute" onclick="toggleMute()"></button>
+   <button class="btn b-s" onclick="exportToAnki()">📥 Anki</button>
+   <button class="btn b-d" onclick="exportProgress()">💾 حفظ</button>
+   <label class="btn b-d" style="cursor:pointer">📂 استرجاع<input type="file" accept=".json" hidden onchange="importProgress(event)"></label>
+   <button class="btn b-d" onclick="resetAllProgress()">🗑️</button>
+  </div>
+ </div>
+ <div class="stats">
+  <div class="stat">تم إتقانها <b id="s-m" style="color:var(--ok)">0</b></div>
+  <div class="stat">تحتاج مراجعة <b id="s-r" style="color:var(--acc)">0</b></div>
+  <div class="stat">نقاط الخبرة <b id="s-x">0</b></div>
+  <div class="stat">المستوى <b id="s-l">1</b></div>
+  <div class="stat">🔥 أيام متتالية <b id="s-s">0</b></div>
+  <div class="stat">أسرع زمن <b id="s-t" style="color:var(--sec)">--</b></div>
+ </div>
+ <div class="bar"><i id="pbar"></i></div>
+</header>
+
+<nav>
+ <button class="tab on" onclick="openTab('t-fc',this)">🎴 البطاقات</button>
+ <button class="tab" onclick="openTab('t-st',this)">📖 القصة</button>
+ <button class="tab" onclick="openTab('t-sp',this)">✍️ الإملاء</button>
+ <button class="tab" onclick="openTab('t-mt',this)">⚡ سرعة البديهة</button>
+ <button class="tab" onclick="openTab('t-sk',this)">🎙️ المحادثة</button>
+ <button class="tab" onclick="openTab('t-qz',this)">🧠 الاختبار</button>
+ <button class="tab" onclick="openTab('t-dc',this)">📋 القاموس</button>
+</nav>
+
+<div id="t-fc" class="sec on">
+ <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+  <b id="fc-n" style="color:var(--pri)"></b>
+  <div class="tools">
+   <select id="fc-c" onchange="applyDeckFilters()"><option value="all">كل التصنيفات</option><option value="مصطلحات وعبارات">مصطلحات وعبارات</option><option value="الطعم والوصف">الطعم والوصف</option><option value="طرق الطبخ">طرق الطبخ</option><option value="أطعمة وأماكن">أطعمة وأماكن</option></select>
+   <select id="fc-f" onchange="applyDeckFilters()"><option value="all">كل المستويات</option><option value="unmastered">غير المحفوظة</option><option value="review">الصعبة</option><option value="due">مستحقة للمراجعة اليوم</option></select>
+  </div>
+ </div>
+ <div class="fc" id="fc">
+  <span class="bdg" id="fc-st"></span><span class="bdg" id="fc-cat"></span>
+  <div class="big" id="fc-w"></div><div class="en" id="fc-en"></div>
+  <div class="hint" id="fc-h"></div>
+  <div class="rev" id="fc-rv"><div class="ar" id="fc-ar"></div>
+   <div class="exb"><span id="fc-ex"></span><button class="btn b-s" style="padding:4px 10px" onclick="speakCurrentExample()">🔊 اسمع الجملة</button></div></div>
+ </div>
+ <div class="row">
+  <button class="btn b-s" onclick="speakCurrentWord()">🔊 نطق (S)</button>
+  <button class="btn b-a" onclick="toggleFcHint()">💡 هنت (H)</button>
+  <button class="btn b-p" onclick="toggleFcReveal()">🔄 اقلب (Space)</button>
+  <button class="btn b-d" onclick="shuffleDeck()">🔀 خلط</button>
+ </div>
+ <div class="row">
+  <button class="btn b-d" onclick="prevCard()">➡️ السابق</button>
+  <button class="btn b-bad" onclick="rateCard('review')">🔥 صعبة (R)</button>
+  <button class="btn b-ok" onclick="rateCard('mastered')">✅ حفظتها (M)</button>
+  <button class="btn b-d" onclick="nextCard()">التالي ⬅️</button>
+ </div>
+ <div class="kb"><span class="kbd">Space</span> المعنى | <span class="kbd">H</span> الهنت | <span class="kbd">S</span> النطق | <span class="kbd">←</span><span class="kbd">→</span> التنقل | <span class="kbd">M</span> حفظتها | <span class="kbd">R</span> صعبة</div>
+</div>
+
+<div id="t-st" class="sec">
+ <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+  <div class="tools"><button class="btn b-p" onclick="renderStoryMode('read')">📖 قراءة ونطق</button><button class="btn b-a" onclick="renderStoryMode('cloze')">🧩 تحدي الفراغات</button></div>
+  <div class="tools">
+   <button class="btn b-s" onclick="speakFullStory()">🔊 اقرأ القصة كاملة</button>
+   <button class="btn b-bad" onclick="stopAllAudio()">⏹️ إيقاف</button>
+  </div>
+ </div>
+ <p id="st-ins" style="color:var(--acc);margin-bottom:10px"></p>
+ <div class="story" id="st-c"></div>
+ <div id="st-ctl" style="display:none;margin-top:14px;text-align:center"><button class="btn b-ok" onclick="checkClozeStory()">✔️ صحّح إجاباتي</button> <b id="cl-sc" style="margin-right:12px"></b></div>
+ <div class="pop-box" id="st-pop">
+  <div style="display:flex;justify-content:space-between;align-items:center"><strong id="sp-w" style="font-size:1.5rem;color:var(--pri);direction:ltr;font-family:Fraunces,serif"></strong><button class="btn b-s" id="sp-s">🔊</button></div>
+  <div id="sp-e" class="en"></div><div id="sp-a" class="ar" style="font-size:1.3rem"></div><div id="sp-h" style="color:var(--pri)"></div>
+ </div>
+</div>
+
+<div id="t-sp" class="sec">
+ <div style="text-align:center;max-width:650px;margin:0 auto">
+  <h3 style="color:var(--pri)">✍️ مختبر الإملاء</h3>
+  <p class="sub" style="margin-bottom:14px">اكتب الكلمة الإنجليزية الصحيحة بناءً على المعنى</p>
+  <div style="background:var(--sub);padding:20px;border-radius:var(--r);border:1px solid var(--line)">
+   <div class="ar" id="p-ar"></div><div class="en" id="p-en"></div><div id="p-h" style="color:var(--pri);font-size:.92rem;margin-top:6px"></div>
+   <div class="slots" id="p-sl"></div>
+   <input type="text" id="p-in" placeholder="اكتب الكلمة هنا..." style="width:100%;text-align:center;direction:ltr;font-size:1.25rem;margin-bottom:14px" oninput="updateSpellingPreview()" onkeydown="if(event.key==='Enter')checkSpelling()">
+   <div class="row" style="margin-top:0">
+    <button class="btn b-s" onclick="speakWord(cur.word)">🔊 اسمع</button><button class="btn b-a" onclick="revealOneLetter()">💡 حرف</button>
+    <button class="btn b-ok" onclick="checkSpelling()">✔️ تأكد</button><button class="btn b-d" onclick="initSpellingCard()">التالي ⬅️</button>
+   </div>
+   <div id="p-fb" style="margin-top:14px;font-weight:700;font-size:1.15rem"></div>
+  </div>
+ </div>
+</div>
+
+<div id="t-mt" class="sec">
+ <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+  <div><h3 style="color:var(--pri)">⚡ تحدي سرعة البديهة</h3><p class="sub">وصّل الكلمة بمعناها في أسرع وقت!</p></div>
+  <div class="tools"><b id="m-t" style="color:var(--acc);font-size:1.2rem">⏱️ 0.0</b><button class="btn b-p" onclick="startMatchGame()">🔄 جولة جديدة</button></div>
+ </div>
+ <div class="mg"><div class="mc" id="m-en" style="direction:ltr"></div><div class="mc" id="m-ar"></div></div>
+</div>
+
+<div id="t-sk" class="sec">
+ <h3 style="color:var(--pri);margin-bottom:6px">🎙️ مدرب المحادثة</h3>
+ <p class="sub" style="margin-bottom:16px">اقرأ الموقف، سجّل ردك بصوتك واستخدم الكلمات المطلوبة، ثم قارن بالإجابة النموذجية ورددها.</p>
+ <div id="sk-c"></div>
+</div>
+
+<div id="t-qz" class="sec">
+ <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+  <select id="q-mode" onchange="generateQuiz()">
+   <option value="ar2en">1. عربي ← اختر الإنجليزي</option>
+   <option value="en2ar">2. إنجليزي ← اختر العربي</option>
+   <option value="def2en">3. التعريف ← اختر الكلمة</option>
+   <option value="context">4. أكمل الجملة</option>
+   <option value="listen">5. استمع واختر 🎧</option>
+  </select>
+  <button class="btn b-a" onclick="showQuizHintBox()">💡 هنت</button>
+ </div>
+ <div style="background:var(--sub);padding:20px;border-radius:var(--r);text-align:center;border:1px solid var(--line)">
+  <div id="q-bar" class="sub" style="font-weight:600;margin-bottom:8px"></div>
+  <div id="q-q" style="font-size:1.45rem;font-weight:700;color:var(--pri);margin-bottom:10px"></div>
+  <div id="q-h" class="hint" style="margin:10px auto"></div>
+  <div class="qo" id="q-o"></div>
+  <div id="q-fb" style="margin-top:14px;font-size:1.1rem;font-weight:700"></div>
+  <button class="btn b-p" style="margin-top:14px" onclick="generateQuiz()">السؤال التالي ⬅️</button>
+ </div>
+</div>
+
+<div id="t-dc" class="sec">
+ <div class="tools"><input type="text" id="d-q" placeholder="ابحث بالإنجليزي أو العربي..." style="flex-grow:1" oninput="renderDictionary()">
+  <select id="d-c" onchange="renderDictionary()"><option value="all">كل التصنيفات</option><option value="مصطلحات وعبارات">مصطلحات وعبارات</option><option value="الطعم والوصف">الطعم والوصف</option><option value="طرق الطبخ">طرق الطبخ</option><option value="أطعمة وأماكن">أطعمة وأماكن</option></select></div>
+ <div class="dg" id="d-g"></div>
+</div>
+<div id="toasts"></div>
+
+<script>
+const vocabData = [
+ { word: "Ready meal", cat: "أطعمة وأماكن", enDef: "A meal that is already cooked and only needs heating", ar: "وجبة جاهزة (سريعة التحضير)", hint: "Ready جاهز + Meal وجبة = الأكل الجاهز اللي بيتسخن في الميكروويف فوراً.", ex: "I do not buy a ready meal because I like fresh food." },
+ { word: "Egyptian cuisine", cat: "أطعمة وأماكن", enDef: "The style of cooking and traditional food from Egypt", ar: "المطبخ المصري (الأكل المصري)", hint: "Cuisine (كويزين) يعني أسلوب طبخ خاص ببلد، زي الكشري والملوخية!", ex: "I love Egyptian cuisine because it is very tasty." },
+ { word: "Slap-up meal", cat: "مصطلحات وعبارات", enDef: "A large, expensive, and very good meal", ar: "وجبة فاخرة ودسمة (وليمة)", hint: "تخيل إنك من كتر الأكل الفاخر بتخبط (Slap) على بطنك من الشبع!", ex: "We went to a restaurant to have a slap-up meal." },
+ { word: "Food court", cat: "أطعمة وأماكن", enDef: "An area in a shopping mall where there are many fast-food restaurants", ar: "منطقة المطاعم في المول", hint: "Food أكل + Court ساحة = الساحة الكبيرة اللي فيها مطاعم المول.", ex: "We ate lunch at the big food court in the mall." },
+ { word: "Bistro", cat: "أطعمة وأماكن", enDef: "A small, informal restaurant or cafe", ar: "مطعم صغير وبسيط (بيسترو)", hint: "مكان صغير وهادي بيقدم وجبات سريعة بس بجودة عالية.", ex: "Yesterday, I had coffee and pasta at a small bistro." },
+ { word: "Poultry", cat: "أطعمة وأماكن", enDef: "Meat from birds such as chickens, ducks, and turkeys", ar: "الدواجن (فراخ، بط، رومي)", hint: "أولها Poul شبه كلمة دجاج بالفرنساوي (Poulet).. أي طيور بناكلها.", ex: "My friend prefers eating poultry more than red meat." },
+ { word: "Carvery", cat: "أطعمة وأماكن", enDef: "A restaurant or buffet where cooked meat is cut for customers", ar: "بوفيه لحوم مشوية تُقطع أمامك", hint: "من فعل Carve يعني ينحت أو يقطع اللحم بالسكينة الكبيرة.", ex: "He went to the carvery section to get roast meat." },
+ { word: "Work up an appetite", cat: "مصطلحات وعبارات", enDef: "To do exercise or physical work that makes you feel hungry", ar: "يفتح الشهية (يجوع بعد تمرين أو مجهود)", hint: "لما تتمرن (Work) كاليستنكس، جسمك بيبني شهية مفتوحة للأكل (Appetite).", ex: "After my workout, I always work up an appetite." },
+ { word: "On a balanced diet", cat: "مصطلحات وعبارات", enDef: "Eating healthy food with the right amounts of different types of food", ar: "يتبع نظاماً غذائياً متوازناً", hint: "Balanced متوازن (ميزان).. أكل صحي محسوب فيه البروتين والخضار.", ex: "I am on a balanced diet to stay strong and healthy." },
+ { word: "Fussy eater", cat: "مصطلحات وعبارات", enDef: "Someone who is very picky and only likes a few types of food", ar: "شخص صعب الإرضاء في الأكل (بيتنك في الأكل)", hint: "Fussy يعني كثير التدقيق والشكوى.. اللي مابياكلش أغلب الأكل!", ex: "My little brother is a fussy eater; he hates vegetables." },
+ { word: "Eat like a horse", cat: "مصطلحات وعبارات", enDef: "To always eat a lot of food", ar: "يأكل بشراهة (يأكل كثيراً جداً)", hint: "الحصان (Horse) ضخم وبيحتاج طاقة وأكل كتير جداً.", ex: "After playing football for two hours, I can eat like a horse!" },
+ { word: "Eat like a bird", cat: "مصطلحات وعبارات", enDef: "To eat very little food", ar: "يأكل قليلاً جداً (ينقنق كالعصفور)", hint: "العصفورة (Bird) معدتها صغيرة جداً، بتلقط حبايتين وتشبع.", ex: "She is not hungry, so she will eat like a bird." },
+ { word: "Vegetarian", cat: "مصطلحات وعبارات", enDef: "A person who does not eat meat or fish", ar: "شخص نباتي (لا يأكل اللحوم)", hint: "أولها Veg من كلمة Vegetables (خضروات).", ex: "My friend is a vegetarian, so he only ordered salad." },
+ { word: "Tasty", cat: "الطعم والوصف", enDef: "Food that has a good and pleasant flavor", ar: "لذيذ / طيب المذاق", hint: "Taste طعم + حرف y = أكلة ليها طعم حلو.", ex: "My mother made a very tasty meal today." },
+ { word: "Bland", cat: "الطعم والوصف", enDef: "Not having a strong taste or flavor", ar: "ماسخ / بلا طعم أو بهارات", hint: "أكل المستشفيات المسلوق من غير ملح ولا توابل اسمه Bland.", ex: "The soup was very bland without any spices." },
+ { word: "Tasteless", cat: "الطعم والوصف", enDef: "Having no flavor at all", ar: "عديم الطعم والمذاق", hint: "Taste (طعم) + less (بدون) = مفيش طعم خالص كأنك بتاكل مية!", ex: "This ready meal is completely tasteless." },
+ { word: "Divine", cat: "الطعم والوصف", enDef: "Extremely good, wonderful, or pleasant", ar: "رائع جداً / خيالي", hint: "لما تدوق أكلة عظيمة لدرجة تقول 'الله! إيه الجمال ده!'.", ex: "The smell and taste of this food are divine!" },
+ { word: "Fit for a king", cat: "مصطلحات وعبارات", enDef: "Of very high quality, good enough for royalty", ar: "يليق بملك (أكل ملوكي فاخر)", hint: "أكل من فخامته ينفع يتقدم لملك (King) في قصره.", ex: "My mom cooked a big dinner that was fit for a king." },
+ { word: "Rich in flavor", cat: "الطعم والوصف", enDef: "Containing a lot of strong, pleasant tastes", ar: "غني بالنكهة", hint: "Rich غني + Flavor نكهة = أكل متسبك ومليان بهارات صح.", ex: "Traditional Egyptian food is rich in flavor." },
+ { word: "Savory", cat: "الطعم والوصف", enDef: "Salty or spicy food, not sweet in taste", ar: "مالح / حاذق (عكس الحلويات)", hint: "أي أكل طبيخ أو مشويات أو معجنات بالجبنة (مش مسكر) اسمه Savory.", ex: "Do you prefer sweet desserts or savory food?" },
+ { word: "Bitter", cat: "الطعم والوصف", enDef: "Having a sharp, unpleasant taste like black coffee without sugar", ar: "مُر (مثل القهوة السادة أو الدواء)", hint: "افتكر طعم القهوة من غير سكر أو قشر الليمون.", ex: "Dark chocolate and black coffee have a bitter taste." },
+ { word: "Boiled", cat: "طرق الطبخ", enDef: "Cooked in very hot water", ar: "مسلوق في الماء", hint: "Boil يعني يغلي المية.. زي البيض المسلوق Boiled eggs.", ex: "I eat two boiled eggs every morning." },
+ { word: "Delicious", cat: "الطعم والوصف", enDef: "Having a very pleasant taste or smell", ar: "لذيذ جداً وشهي", hint: "أشهر كلمة في الإنجليزي لوصف الأكل الحلو.", ex: "Thank you for this delicious dinner!" },
+ { word: "Fresh", cat: "الطعم والوصف", enDef: "Recently made or picked, not frozen or old", ar: "طازج (طازة)", hint: "لسه مقطوف أو معمول دلوقتي، زي كلمة فريش اللي بنقولها.", ex: "I like to eat fresh fruit and vegetables." },
+ { word: "Fried", cat: "طرق الطبخ", enDef: "Cooked in hot oil or fat", ar: "مقلي في الزيت", hint: "افتكر كنتاكي (KFC = Kentucky Fried Chicken) يعني دجاج مقلي!", ex: "Eating too much fried food is not healthy." },
+ { word: "Grilled", cat: "طرق الطبخ", enDef: "Cooked over direct heat on a metal frame (grill)", ar: "مشوي على الشواية (الجريل)", hint: "من كلمة جريل (Grill) اللي بنشوي عليها الفراخ والسمك.", ex: "Grilled chicken is great when you are on a diet." },
+ { word: "Raw", cat: "طرق الطبخ", enDef: "Not cooked", ar: "نيء (غير مطبوخ)", hint: "أكل لسه مادخلش النار، زي السوشي أو الجزر النيء.", ex: "You should never eat raw chicken because it is dangerous." },
+ { word: "Roast", cat: "طرق الطبخ", enDef: "Cooked in an oven or over a fire", ar: "مشوي في الفرن (روستو)", hint: "زي اللحمة الروستو أو الفراخ اللي بتتحمر جوه الفرن.", ex: "We had roast beef and potatoes for lunch." },
+ { word: "Sour", cat: "الطعم والوصف", enDef: "Having a sharp acid taste like a lemon", ar: "حامض / لاذع (مثل الليمون)", hint: "الطعم اللي بيخليك تغمض عينك لما تعصر ليمونة!", ex: "This green lemon is very sour." },
+ { word: "Spicy", cat: "الطعم والوصف", enDef: "Containing strong flavors from spices that burn your mouth", ar: "حار / متبل بالبهارات الحارة (سبايسي)", hint: "كلمة سبايسي اللي بنقولها على الأكل الحراق.", ex: "Indian and Mexican food can be very spicy." },
+ { word: "Chili (pepper)", cat: "أطعمة وأماكن", enDef: "A small red or green vegetable that makes food very hot and spicy", ar: "فلفل حار (شطة)", hint: "قرن الفلفل الحراق الأحمر أو الأخضر.", ex: "He added red chili (pepper) to make the sauce spicy." },
+ { word: "Burger", cat: "أطعمة وأماكن", enDef: "Round flat meat cooked and eaten inside a bread bun", ar: "برجر", hint: "نفس الكلمة بالعربي!", ex: "I ordered a cheese burger with lettuce." },
+ { word: "Avocado", cat: "أطعمة وأماكن", enDef: "A green fruit with thick skin and a large seed inside", ar: "ثمرة الأفوكادو", hint: "فاكهة خضراء صحية جداً بتتحط في السلطة.", ex: "He likes to put raw avocado in his salad." },
+ { word: "Lettuce", cat: "أطعمة وأماكن", enDef: "A plant with large green leaves eaten raw in salads", ar: "خس", hint: "الورق الأخضر اللي في السلطة والبرجر (نطقها: لِتَس).", ex: "Wash the green lettuce well before making the salad." },
+ { word: "Noodle", cat: "أطعمة وأماكن", enDef: "Long, thin strips of pasta, often eaten in soup", ar: "شعرية / نودلز (إندومي)", hint: "المكرونة الطويلة الرفيعة زي الإندومي.", ex: "On cold days, I love eating hot noodle soup." },
+ { word: "Onion", cat: "أطعمة وأماكن", enDef: "A round vegetable with a strong smell and flavor that makes you cry", ar: "بصل", hint: "اللي بيخلي العين تدمع لما نقطعه في المطبخ!", ex: "My eyes water when I cut an onion." },
+ { word: "Pasta", cat: "أطعمة وأماكن", enDef: "Italian food made from flour, water, and eggs, cooked in boiling water", ar: "مكرونة", hint: "الاسم العالمي لكل أنواع المكرونة.", ex: "Pasta with red tomato sauce is easy to cook." },
+ { word: "Salt", cat: "أطعمة وأماكن", enDef: "A white substance used to add flavor to food", ar: "ملح", hint: "الملح الأبيض اللي بنحطه على كل الأكل.", ex: "The food is bland; please pass me the salt." },
+ { word: "Salmon", cat: "أطعمة وأماكن", enDef: "A large fish with pink meat that is very healthy to eat", ar: "سمك السلمون", hint: "حرف الـ L صامت لا يُنطق! بننطقها (سامُن).", ex: "Grilled salmon is my favorite fish." },
+ { word: "Yogurt", cat: "أطعمة وأماكن", enDef: "A thick white food made from milk", ar: "زبادي", hint: "كوباية الزبادي اللي بناكلها بالليل.", ex: "Before sleeping, I eat a cup of cold yogurt." }
+];
+
+const $ = id => document.getElementById(id);
+const IV = [0, 1, 3, 7, 14, 30];
+const lvl = () => Math.floor(appState.xp / 100) + 1;
+const rnd = a => a[Math.floor(Math.random() * a.length)];
+let muted = localStorage.getItem('fvMute') === '1', autoPlay = localStorage.getItem('fvAuto') === '1', AC, ready = false;
+let appState = Object.assign({ mastered: [], review: [], xp: 0, bestTime: null, streak: 0, lastDay: '', box: {}, due: {} },
+  JSON.parse(localStorage.getItem('ultimateFoodVocabState') || '{}'));
+(function () {
+  const t = new Date().toDateString(), y = new Date(Date.now() - 864e5).toDateString();
+  if (appState.lastDay !== t) { appState.streak = appState.lastDay === y ? appState.streak + 1 : 1; appState.lastDay = t; }
+})();
+document.documentElement.dataset.theme = localStorage.getItem('fvTheme') || 'dark';
+$('auto').checked = autoPlay;
+let filteredDeck = [...vocabData], fcIndex = 0;
+
+function saveState() {
+  localStorage.setItem('ultimateFoodVocabState', JSON.stringify(appState));
+  $('s-m').innerText = `${appState.mastered.length} / ${vocabData.length}`;
+  $('s-r').innerText = appState.review.length; $('s-x').innerText = appState.xp;
+  $('s-l').innerText = lvl(); $('s-s').innerText = appState.streak;
+  $('s-t').innerText = appState.bestTime ? appState.bestTime + ' ث' : '--';
+  $('pbar').style.width = appState.mastered.length / vocabData.length * 100 + '%';
+}
+function addXP(n) { const l = lvl(); appState.xp += n; saveState(); if (lvl() > l) { toast('🎉 وصلت للمستوى ' + lvl() + '!', 'ok'); confetti(); sfx('win'); } }
+function toast(m, t) { const d = document.createElement('div'); d.className = 'toast ' + (t || ''); d.textContent = m; $('toasts').appendChild(d); setTimeout(() => d.remove(), 2800); }
+function sfx(k) {
+  if (muted) return;
+  try {
+    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+    if (AC.state === 'suspended') AC.resume();
+    ({ ok: [660, 880], bad: [260, 200], win: [523, 659, 784] })[k].forEach((hz, i) => {
+      const o = AC.createOscillator(), g = AC.createGain(), t0 = AC.currentTime + i * .1;
+      o.frequency.value = hz; g.gain.setValueAtTime(.06, t0); g.gain.exponentialRampToValueAtTime(.001, t0 + .18);
+      o.connect(g); g.connect(AC.destination); o.start(t0); o.stop(t0 + .2);
+    });
+  } catch (e) {}
+}
+function confetti() {
+  const c = ['#f0a93b', '#a98bd6', '#4fb3b0', '#86b76a', '#e2574c'];
+  for (let i = 0; i < 60; i++) {
+    const p = document.createElement('i'); p.className = 'cf';
+    p.style.cssText = `left:${Math.random() * 100}vw;background:${c[i % 5]};animation-delay:${Math.random() * .4}s;--dx:${(Math.random() - .5) * 220}px`;
+    document.body.appendChild(p); setTimeout(() => p.remove(), 2700);
+  }
+}
+function toggleTheme() { const l = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light'; document.documentElement.dataset.theme = l; localStorage.setItem('fvTheme', l); }
+function toggleMute() { muted = !muted; localStorage.setItem('fvMute', +muted); $('btn-mute').innerText = muted ? '🔇' : '🔔'; }
+$('btn-mute').innerText = muted ? '🔇' : '🔔';
+
+function openTab(id, b) {
+  document.querySelectorAll('.sec').forEach(s => s.classList.remove('on'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+  $(id).classList.add('on'); b.classList.add('on');
+  ({ 't-sp': initSpellingCard, 't-mt': startMatchGame, 't-qz': generateQuiz, 't-dc': renderDictionary, 't-sk': renderSpeakingPrompts })[id]?.();
+}
+
+/* =========================================================================
+   المحرك الصوتي الهجين الثلاثي (Triple-Engine Smart Audio)
+   يعمل على كافة الأنظمة (Windows, Linux/Ubuntu, Android, iOS) بلا انقطاع
+   ========================================================================= */
+let voices = [], voiceMode = localStorage.getItem('fvVoice') || 'cloud-us';
+let currentAudio = null, speechQueue = [], isSpeakingQueue = false;
+const dictCache = {};
+
+function loadVoices() {
+  const sel = $('voice-sel');
+  const cloudOptions = [
+    `<option value="cloud-us">🌐 نطق بشري طبيعي (US - أونلاين)</option>`,
+    `<option value="cloud-uk">🌐 نطق بشري طبيعي (UK - أونلاين)</option>`,
+    `<option value="dict-human">📖 قاموس أكسفورد البشري (للكلمات)</option>`
+  ];
+
+  if ('speechSynthesis' in window) {
+    const sc = v => (/natural|online|google/i.test(v.name) ? 50 : 0) + (/us|aria|jenny|samantha|zira|ava|female/i.test(v.name) ? 25 : 0) + (/en-US/i.test(v.lang) ? 10 : 0);
+    voices = speechSynthesis.getVoices().filter(v => /^en/i.test(v.lang)).sort((a, b) => sc(b) - sc(a));
+  }
+
+  const localOptions = voices.map(v => `<option value="${v.name}">💻 ${v.name}</option>`);
+  sel.innerHTML = cloudOptions.concat(localOptions).join('');
+
+  if (![...sel.options].some(o => o.value === voiceMode)) {
+    voiceMode = 'cloud-us';
+  }
+  sel.value = voiceMode;
+}
+
+function setVoice(n) {
+  voiceMode = n;
+  localStorage.setItem('fvVoice', n);
+  speakWord('Delicious food is rich in flavor!');
+}
+
+if ('speechSynthesis' in window) {
+  speechSynthesis.onvoiceschanged = loadVoices;
+}
+loadVoices();
+
+function stopAllAudio() {
+  speechQueue = [];
+  isSpeakingQueue = false;
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio.src = '';
+    currentAudio = null;
+  }
+  if ('speechSynthesis' in window) {
+    speechSynthesis.cancel();
+  }
+  $('btn-stop-audio').style.display = 'none';
+}
+
+// تقسيم النصوص الطويلة إلى جمل قصيرة لضمان عدم انقطاع الصوت
+function splitIntoChunks(text) {
+  const cleaned = text.replace(/\(pepper\)/gi, 'pepper').replace(/\s+/g, ' ').trim();
+  if (cleaned.length <= 140) return [cleaned];
+  const sentences = cleaned.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [cleaned];
+  return sentences.map(s => s.trim()).filter(Boolean);
+}
+
+function speakWord(text) {
+  if (!text) return;
+  stopAllAudio();
+  speechQueue = splitIntoChunks(text);
+  if (speechQueue.length > 1) $('btn-stop-audio').style.display = 'inline-flex';
+  isSpeakingQueue = true;
+  playNextInQueue();
+}
+
+async function playNextInQueue() {
+  if (!isSpeakingQueue || !speechQueue.length) {
+    isSpeakingQueue = false;
+    $('btn-stop-audio').style.display = 'none';
+    return;
+  }
+  const chunk = speechQueue.shift();
+  const isSlow = $('slow').checked;
+
+  // 1. إذا اختار قاموس أكسفورد وكانت كلمة مفردة
+  if (voiceMode === 'dict-human' && chunk.split(' ').length <= 2) {
+    const cleanWord = chunk.replace(/[^a-zA-Z\s-]/g, '').trim().toLowerCase();
+    try {
+      if (!dictCache[cleanWord]) {
+        const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(cleanWord)}`);
+        if (res.ok) {
+          const data = await res.json();
+          const ph = data[0]?.phonetics?.find(p => p.audio && p.audio.length > 5);
+          if (ph) dictCache[cleanWord] = ph.audio;
+        }
+      }
+      if (dictCache[cleanWord]) {
+        await playHtml5Audio(dictCache[cleanWord], isSlow ? 0.78 : 1.0);
+        playNextInQueue();
+        return;
+      }
+    } catch (e) {}
+  }
+
+  // 2. المحرك السحابي الطبيعي (US / UK) عبر البث الصوتي المباشر
+  if (voiceMode === 'cloud-us' || voiceMode === 'cloud-uk' || voiceMode === 'dict-human') {
+    const type = voiceMode === 'cloud-uk' ? 1 : 2; // 2 = US, 1 = UK
+    const url = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(chunk)}&type=${type}`;
+    const played = await playHtml5Audio(url, isSlow ? 0.78 : 1.0);
+    if (played) {
+      playNextInQueue();
+      return;
+    }
+  }
+
+  // 3. المحرك المحلي للمتصفح (Offline Fallback) مع إصلاح ثغرة Chrome
+  playBrowserTTS(chunk, isSlow, () => playNextInQueue());
+}
+
+function playHtml5Audio(url, rate) {
+  return new Promise(resolve => {
+    try {
+      const audio = new Audio(url);
+      currentAudio = audio;
+      audio.playbackRate = rate;
+      let resolved = false;
+      const done = ok => { if (!resolved) { resolved = true; resolve(ok); } };
+      audio.onended = () => done(true);
+      audio.onerror = () => done(false);
+      // مهلة أمان لو الإنترنت بطيء ليتحول تلقائياً للمحرك المحلي
+      const timeout = setTimeout(() => { if (audio.readyState < 2) { audio.pause(); done(false); } }, 3500);
+      audio.oncanplay = () => clearTimeout(timeout);
+      audio.play().catch(() => { clearTimeout(timeout); done(false); });
+    } catch (e) {
+      resolve(false);
+    }
+  });
+}
+
+function playBrowserTTS(chunk, isSlow, onDone) {
+  if (!('speechSynthesis' in window)) {
+    toast('⚠️ المتصفح لا يدعم الصوت بدون إنترنت', 'bad');
+    onDone();
+    return;
+  }
+  speechSynthesis.cancel();
+  setTimeout(() => {
+    const u = new SpeechSynthesisUtterance(chunk);
+    window._activeUtterance = u; // منع المتصفح من حذفه من الذاكرة أثناء القراءة
+    u.lang = 'en-US';
+    const matchedVoice = voices.find(v => v.name === voiceMode) || voices[0];
+    if (matchedVoice) u.voice = matchedVoice;
+    u.rate = isSlow ? 0.75 : 0.95;
+    u.pitch = 1.0;
+    u.onend = () => onDone();
+    u.onerror = () => onDone();
+    speechSynthesis.speak(u);
+  }, 60);
+}
+
+/* ---------- 1. البطاقات ---------- */
+const isDue = w => !appState.due[w] || appState.due[w] <= Date.now();
+function applyDeckFilters() {
+  const c = $('fc-c').value, f =$('fc-f').value;
+  filteredDeck = vocabData.filter(i => (c === 'all' || i.cat === c) && (f === 'all' || (f === 'unmastered' && !appState.mastered.includes(i.word)) ||
+    (f === 'review' && appState.review.includes(i.word)) || (f === 'due' && isDue(i.word))));
+  if (!filteredDeck.length) { toast('مفيش كلمات في الفلتر ده — عرضنا كل الكلمات', 'ok'); $('fc-c').value =$('fc-f').value = 'all'; filteredDeck = [...vocabData]; }
+  fcIndex = 0; renderFlashcard();
+}
+function renderFlashcard() {
+  const i = filteredDeck[fcIndex], w = i.word, st = $('fc-st');$('fc-n').innerText = `بطاقة ${fcIndex + 1} من ${filteredDeck.length}`;
+  $('fc-cat').innerText = i.cat; $('fc-w').innerText = w; $('fc-en').innerText = '📘 ' + i.enDef;
+  $('fc-h').innerText = '💡 ' + i.hint; $('fc-ar').innerText = i.ar; $('fc-ex').innerText = `"${i.ex}"`;
+  $('fc-h').style.display =$('fc-rv').style.display = 'none';
+  const m = appState.mastered.includes(w), r = appState.review.includes(w);
+  st.innerText = m ? '✅ محفوظة' : r ? '🔥 تحتاج مراجعة' : '⏳ قيد التعلم';
+  st.style.color = m ? 'var(--ok)' : r ? 'var(--bad)' : 'var(--pri)';
+  const c = $('fc'); c.classList.remove('pop'); void c.offsetWidth; c.classList.add('pop');
+  if (autoPlay && ready) speakCurrentWord();
+}
+function toggleFcHint() { const e = $('fc-h'); e.style.display = e.style.display === 'block' ? 'none' : 'block'; }
+function toggleFcReveal() { const e = $('fc-rv'); e.style.display = e.style.display === 'block' ? 'none' : 'block'; }
+const speakCurrentWord = () => speakWord(filteredDeck[fcIndex].word);
+const speakCurrentExample = () => speakWord(filteredDeck[fcIndex].ex);
+function nextCard() { fcIndex = (fcIndex + 1) % filteredDeck.length; renderFlashcard(); }
+function prevCard() { fcIndex = (fcIndex - 1 + filteredDeck.length) % filteredDeck.length; renderFlashcard(); }
+function shuffleDeck() { filteredDeck.sort(() => Math.random() - .5); fcIndex = 0; renderFlashcard(); toast('🔀 اتخلطت البطاقات'); }
+function rateCard(type) {
+  const w = filteredDeck[fcIndex].word;
+  if (type === 'mastered') {
+    if (!appState.mastered.includes(w)) appState.mastered.push(w);
+    appState.review = appState.review.filter(x => x !== w);
+    appState.box[w] = Math.min((appState.box[w] || 0) + 1, 5); appState.due[w] = Date.now() + IV[appState.box[w]] * 864e5;
+    addXP(10); sfx('ok');
+  } else {
+    if (!appState.review.includes(w)) appState.review.push(w);
+    appState.mastered = appState.mastered.filter(x => x !== w);
+    appState.box[w] = 1; appState.due[w] = Date.now(); sfx('bad');
+  }
+  saveState(); renderFlashcard(); setTimeout(nextCard, 250);
+}
+document.addEventListener('keydown', e => {
+  if (!$('t-fc').classList.contains('on') || ['INPUT', 'SELECT'].includes(document.activeElement.tagName)) return;
+  const k = e.key.toLowerCase();
+  if (e.code === 'Space') { e.preventDefault(); toggleFcReveal(); }
+  if (k === 'h') toggleFcHint(); if (k === 's') speakCurrentWord(); if (k === 'm') rateCard('mastered'); if (k === 'r') rateCard('review');
+  if (e.code === 'ArrowLeft') nextCard(); if (e.code === 'ArrowRight') prevCard();
+});
+
+/* ---------- 2. القصة ---------- */
+const rawStory = `I love [Egyptian cuisine] because the food is [delicious] and [rich in flavor]. Usually, I am [on a balanced diet], so I do not buy a [ready meal] from the supermarket because it is [bland] and [tasteless] without enough [salt]. After my daily workout, I always [work up an appetite] and I can [eat like a horse]! Yesterday, I went to a small [bistro] and a big [food court] with my friends to have a [slap-up meal] that was [fit for a king]. My first friend is a [vegetarian] and a [fussy eater], so he will [eat like a bird]. He only ordered a [fresh] salad with [raw] [avocado], green [lettuce], [onion], and a little [sour] lemon, plus a small plate of [pasta] and a [noodle] soup. My second friend loves meat and [poultry], so he went to the [carvery] section. He ate [savory] [roast] chicken, a [fried] [burger], and [grilled] [salmon]. He also added red [chili (pepper)] because he loves [spicy] food, and he said the taste was [divine] and very [tasty]. For me, I ate [boiled] eggs because I do not like [bitter] food, and before sleeping, I just had a cup of cold [yogurt].`;
+function renderStoryMode(mode) {
+  $('st-pop').style.display = 'none';
+  if (mode === 'read') {
+    $('st-ctl').style.display = 'none';$('st-ins').innerText = '👆 اضغط على أي كلمة ملوّنة لسماع نطقها ورؤية معناها:';
+    $('st-c').innerHTML = rawStory.replace(/\[(.*?)\]/g, (m, p) => `<span class="sw" onclick="openStoryWord('${p}')">${p}</span>`);
+  } else {
+    $('st-ctl').style.display = 'block'; $('cl-sc').innerText = '';$('st-ins').innerText = '🧩 اختر الكلمة الصحيحة في كل فراغ:';
+    let n = 0;
+    $('st-c').innerHTML = rawStory.replace(/\[(.*?)\]/g, (m, p) => {
+      if (++n % 3) return `<strong>${p}</strong>`;
+      const o = [p]; while (o.length < 4) { const r = rnd(vocabData).word; if (!o.some(x => x.toLowerCase() === r.toLowerCase())) o.push(r); }
+      o.sort(() => Math.random() - .5);
+      return `<select class="cl" data-ans="${p.toLowerCase()}"><option value="">-- اختر --</option>${o.map(x => `<option value="${x.toLowerCase()}">${x}</option>`).join('')}</select>`;
+    });
+  }
+}
+function openStoryWord(w) {
+  const i = vocabData.find(v => v.word.toLowerCase() === w.toLowerCase()); if (!i) return;
+  $('st-pop').style.display = 'block'; $('sp-w').innerText = i.word; $('sp-e').innerText = '📘 ' + i.enDef;
+  $('sp-a').innerText = i.ar; $('sp-h').innerText = '💡 ' + i.hint; $('sp-s').onclick = () => speakWord(i.word); speakWord(i.word);
+}
+function checkClozeStory() {
+  const s = document.querySelectorAll('.cl'); let c = 0;
+  s.forEach(x => { const ok = x.value === x.dataset.ans; x.style.borderColor = x.style.color = ok ? 'var(--ok)' : 'var(--bad)'; if (ok) c++; });
+  $('cl-sc').innerText = `النتيجة: ${c} من ${s.length}`;
+  if (c === s.length) { addXP(30); confetti(); sfx('win'); }
+}
+const speakFullStory = () => speakWord(rawStory.replace(/[\[\]]/g, ''));
+
+/* ---------- 3. الإملاء ---------- */
+let cur = null, shown = [];
+function initSpellingCard() {
+  cur = rnd(vocabData); shown = [];
+  $('p-ar').innerText = cur.ar; $('p-en').innerText = '📘 ' + cur.enDef; $('p-h').innerText = '💡 ' + cur.hint;
+  $('p-in').value = '';$('p-fb').innerText = ''; updateSpellingPreview();
+}
+function updateSpellingPreview() {
+  const t = $('p-in').value, box =$('p-sl'); box.innerHTML = '';
+  [...cur.word].forEach((ch, i) => {
+    const d = document.createElement('div');
+    if (' -()'.includes(ch)) { d.className = 'slot sp'; d.innerText = ch; }
+    else { d.className = 'slot'; if (shown.includes(i)) { d.innerText = ch; d.style.borderColor = 'var(--pri)'; } else if (t[i]) d.innerText = t[i]; }
+    box.appendChild(d);
+  });
+}
+function revealOneLetter() { const i = [...cur.word].findIndex((ch, k) => !' -()'.includes(ch) && !shown.includes(k)); if (i > -1) shown.push(i); updateSpellingPreview(); }
+function checkSpelling() {
+  const ok = $('p-in').value.trim().toLowerCase() === cur.word.toLowerCase(), f =$('p-fb');
+  f.innerText = ok ? '🎉 إملاء صحيح 100% (+15 XP)' : `❌ قريب! الصح: ${cur.word}`; f.style.color = ok ? 'var(--ok)' : 'var(--bad)';
+  speakWord(cur.word); if (ok) { addXP(15); sfx('ok'); } else sfx('bad');
+}
+
+/* ---------- 4. سرعة البديهة ---------- */
+let sEn = null, sAr = null, left = 6, tmr = null, t0 = 0;
+function startMatchGame() {
+  clearInterval(tmr); sEn = sAr = null; left = 6;
+  const pool = [...vocabData].sort(() => Math.random() - .5).slice(0, 6);
+  const fill = (id, key, side) => { const c = $(id); c.innerHTML = '';
+    [...pool].sort(() => Math.random() - .5).forEach(i => { const d = document.createElement('div'); d.className = 'mcard'; d.innerText = i[key]; d.onclick = () => pick(d, i.word, side); c.appendChild(d); }); };
+  fill('m-en', 'word', 'en'); fill('m-ar', 'ar', 'ar');
+  t0 = Date.now(); tmr = setInterval(() => $('m-t').innerText = '⏱️ ' + ((Date.now() - t0) / 1000).toFixed(1), 100);
+}
+function pick(el, w, side) {
+  document.querySelectorAll('#m-' + side + ' .mcard').forEach(c => c.classList.remove('sel')); el.classList.add('sel');
+  if (side === 'en') { sEn = { el, w }; speakWord(w); } else sAr = { el, w };
+  if (!sEn || !sAr) return;
+  if (sEn.w === sAr.w) {
+    sEn.el.classList.add('done'); sAr.el.classList.add('done'); addXP(5); sfx('ok');
+    if (--left === 0) {
+      clearInterval(tmr); const t = +((Date.now() - t0) / 1000).toFixed(1);
+      if (!appState.bestTime || t < appState.bestTime) appState.bestTime = t;
+      saveState(); confetti(); sfx('win'); toast(`🔥 بطل! خلصت في ${t} ثانية`, 'ok');
+    }
+  } else {
+    const a = sEn.el, b = sAr.el; sfx('bad'); a.classList.add('shake'); b.classList.add('shake');
+    setTimeout(() => { [a, b].forEach(x => x.classList.remove('sel', 'shake')); }, 350);
+  }
+  sEn = sAr = null;
+}
+
+/* ---------- 5. المحادثة ---------- */
+const speakingScenarios = [
+ { q: "الموقف 1: زميلك الأجنبي في الجامعة يسألك عن رأيك في الأكل المصري، ولماذا لا تشتري وجبات جاهزة من السوبرماركت؟", targetWords: "Egyptian cuisine - delicious - rich in flavor - ready meal - bland", sampleAns: "I love Egyptian cuisine because it is delicious and rich in flavor. I never buy a ready meal because it is bland and tasteless." },
+ { q: "الموقف 2: بعد تمرين الكاليستنكس، أنت جائع جداً وتصف لصديقك كيف تفتح الرياضة شهيتك وماذا تأكل في نظامك المتوازن.", targetWords: "work up an appetite - eat like a horse - on a balanced diet - grilled - boiled", sampleAns: "After my workout, I always work up an appetite and I can eat like a horse! Because I am on a balanced diet, I eat grilled chicken, salmon, and boiled eggs." },
+ { q: "الموقف 3: تحكي عن خروجة مع صديقك النباتي المتدقق في الأكل في منطقة المطاعم بالمول، وماذا طلب كل منكما.", targetWords: "food court - vegetarian - fussy eater - eat like a bird - fresh - spicy", sampleAns: "Yesterday, we went to the food court. My friend is a vegetarian and a fussy eater, so he eats like a bird. He only ate a fresh salad with lettuce and avocado, while I ate a spicy burger." }
+];
+function renderSpeakingPrompts() {
+  $('sk-c').innerHTML = speakingScenarios.map((s, i) => `
+   <div class="spk"><h4 style="color:var(--acc);margin-bottom:8px">🗣️ ${s.q}</h4>
+    <p style="margin-bottom:12px">🎯 <strong>استخدم:</strong> <span style="color:var(--pri);direction:ltr;display:inline-block">${s.targetWords}</span></p>
+    <div class="tools"><button class="btn b-a" onclick="micTry(${i})">🎙️ سجّل ردك</button>
+     <button class="btn b-p" onclick="$('ans-${i}').style.display='block'">👀 الإجابة النموذجية</button>
+     <button class="btn b-s" onclick="speakWord(speakingScenarios[${i}].sampleAns)">🔊 رددها وراءي</button></div>
+    <div class="mic" id="mic-${i}"></div>
+    <div id="ans-${i}" style="display:none;margin-top:12px;padding:12px;background:rgba(134,183,106,.12);border:1px solid var(--ok);border-radius:12px;direction:ltr;text-align:left;font-size:1.12rem">"${s.sampleAns}"</div></div>`).join('');
+}
+function micTry(i) {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition, out = $('mic-' + i); out.style.display = 'block';
+  if (!SR) { out.innerText = '⚠️ المتصفح ده مش بيدعم التعرف على الصوت — جرّب Chrome.'; return; }
+  const r = new SR(); r.lang = 'en-US'; out.innerText = '🎙️ اتكلم دلوقتي...';
+  r.onresult = e => {
+    const t = e.results[0][0].transcript.toLowerCase(), ws = speakingScenarios[i].targetWords.split(' - ');
+    const hit = ws.filter(w => t.includes(w.toLowerCase()));
+    out.innerHTML = `<div style="direction:ltr">🗣️ "${t.replace(/</g, '&lt;')}"</div><div style="margin-top:6px">استخدمت ${hit.length} من ${ws.length}: ${ws.map(w => (hit.includes(w) ? '✅ ' : '⬜ ') + w).join(' | ')}</div>`;
+    if (hit.length >= ws.length - 1) { addXP(20); sfx('win'); toast('🎤 نطق ممتاز! +20 XP', 'ok'); }
+  };
+  r.onerror = () => out.innerText = '❌ تعذّر التسجيل — اسمح للمتصفح بالميكروفون.';
+  r.start();
+}
+
+/* ---------- 6. الاختبار ---------- */
+let qo = null, qS = 0, qT = 0, qC = 0;
+function generateQuiz() {
+  const m = $('q-mode').value, q =$('q-q'); qo = rnd(vocabData);
+  $('q-h').style.display = 'none';$('q-fb').innerText = '';
+  q.style.direction = m === 'ar2en' || m === 'listen' ? 'rtl' : 'ltr';
+  if (m === 'ar2en') q.innerText = `ما الكلمة الإنجليزية التي تعني: (${qo.ar})؟`;
+  else if (m === 'en2ar') q.innerText = `What is the Arabic meaning of: "${qo.word}"?`;
+  else if (m === 'def2en') q.innerText = `📘 "${qo.enDef}"`;
+  else if (m === 'listen') { q.innerHTML = '🎧 اسمع الكلمة واختر الإجابة<br><button class="btn b-s" style="margin-top:10px" onclick="speakWord(qo.word)">🔊 أعد الاستماع</button>'; setTimeout(() => speakWord(qo.word), 250); }
+  else q.innerText = qo.ex.replace(new RegExp(qo.word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), '_______');
+  const o = [qo]; while (o.length < 4) { const r = rnd(vocabData); if (!o.includes(r)) o.push(r); }
+  o.sort(() => Math.random() - .5); $('q-o').innerHTML = '';
+  o.forEach(x => { const b = document.createElement('button'); b.className = 'qopt'; b.style.direction = m === 'en2ar' ? 'rtl' : 'ltr';
+    b.innerText = m === 'en2ar' ? x.ar : x.word; b.onclick = () => checkQuizChoice(b, x.word); $('q-o').appendChild(b); });$('q-bar').innerText = `✅ ${qS} / ${qT}  |  🔥 كومبو ${qC}`;
+}
+function showQuizHintBox() { const h = $('q-h'); h.innerText = `💡 ${qo.hint} | أول حرفين: (${qo.word.substring(0, 2)}...)`; h.style.display = 'block'; }
+function checkQuizChoice(b, w) {
+  document.querySelectorAll('.qopt').forEach(x => x.disabled = true); const f = $('q-fb'); qT++;
+  if (w === qo.word) {
+    b.classList.add('c'); qS++; qC++; const xp = 10 + Math.min(qC, 5) * 2;
+    f.innerText = `🎉 صحيح! (+${xp} XP)${qC > 2 ? ' 🔥 كومبو x' + qC : ''}`; f.style.color = 'var(--ok)'; addXP(xp); sfx('ok');
+  } else {
+    b.classList.add('w'); qC = 0; if (!appState.review.includes(qo.word)) appState.review.push(qo.word);
+    appState.mastered = appState.mastered.filter(x => x !== qo.word); saveState();
+    f.innerText = `❌ الصح: ${qo.word} (${qo.ar}) — اتضافت للمراجعة`; f.style.color = 'var(--bad)'; sfx('bad');
+  }
+  speakWord(qo.word); $('q-bar').innerText = `✅ ${qS} / ${qT}  |  🔥 كومبو ${qC}`;
+}
+
+/* ---------- 7. القاموس + Anki + التقدم ---------- */
+function renderDictionary() {
+  const q = $('d-q').value.toLowerCase(), c = $('d-c').value, g =$('d-g'); g.innerHTML = '';
+  vocabData.filter(i => (i.word.toLowerCase().includes(q) || i.ar.includes(q) || i.enDef.toLowerCase().includes(q)) && (c === 'all' || i.cat === c)).forEach(i => {
+    const d = document.createElement('div'); d.className = 'di' + (appState.mastered.includes(i.word) ? ' m' : '');
+    d.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><strong style="font-size:1.3rem;color:var(--pri);direction:ltr;font-family:Fraunces,serif">${i.word}</strong><button class="btn b-s" style="padding:4px 10px" onclick="speakWord('${i.word}')">🔊</button></div>
+     <div class="sub">[${i.cat}]</div><div class="en" style="margin:4px 0">📘 ${i.enDef}</div><div class="ar" style="font-size:1.1rem">${i.ar}</div>
+     <div style="color:var(--pri);font-size:.9rem;margin-bottom:6px">💡 ${i.hint}</div><div class="en" style="font-style:italic;font-size:.9rem">"${i.ex}"</div>`;
+    g.appendChild(d);
+  });
+}
+function download(name, blob) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); }
+function exportToAnki() {
+  const rows = vocabData.map(i => `"${i.word} <br><small>(${i.cat})</small>";"<b>${i.ar}</b><br>📘 ${i.enDef}<br>💡 <i>${i.hint}</i><br><br>🗣️ ${i.ex}"`);
+  download('Anki_Food_Vocab_A2.csv', new Blob(['\uFEFF' + rows.join('\n')], { type: 'text/csv;charset=utf-8' }));
+}
+function exportProgress() { download('food-vocab-progress.json', new Blob([JSON.stringify(appState)], { type: 'application/json' })); }
+function importProgress(e) {
+  const f = e.target.files[0]; if (!f) return; const r = new FileReader();
+  r.onload = () => { try { appState = Object.assign(appState, JSON.parse(r.result)); saveState(); applyDeckFilters(); toast('✅ تم استرجاع تقدمك', 'ok'); } catch (x) { toast('❌ الملف غير صالح', 'bad'); } };
+  r.readAsText(f);
+}
+function resetAllProgress() {
+  if (!confirm('هل أنت متأكد من تصفير جميع النقاط والكلمات المحفوظة؟')) return;
+  appState = { mastered: [], review: [], xp: 0, bestTime: null, streak: 1, lastDay: new Date().toDateString(), box: {}, due: {} };
+  saveState(); applyDeckFilters();
+}
+
+saveState(); renderFlashcard(); renderStoryMode('read'); ready = true;
+if (appState.streak > 1) toast(`🔥 ${appState.streak} أيام متتالية — كمّل!`, 'ok');
+</script>
+</body>
+</html>
